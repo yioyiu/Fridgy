@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "Ingredient Manager",
+    "slug": "ingredient-manager",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4CAF50"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ingredientmanager.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to scan barcodes and take photos of ingredients.",
+        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to add ingredient images.",
+        "NSLocationWhenInUseUsageDescription": "This app uses location to suggest nearby stores.",
+        "NSUserNotificationsUsageDescription": "This app sends notifications to remind you about expiring ingredients."
+      }
+    },
+    "android": {
+      "package": "com.ingredientmanager.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4CAF50"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "WAKE_LOCK",
+        "NOTIFICATIONS",
+        "POST_NOTIFICATIONS",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-camera",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#4CAF50",
+          "sounds": [
+            "./assets/notification.wav"
+          ]
+        }
+      ]
+    ],
+    "scheme": "ingredient-manager",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ef74bbf4-a938-464e-9c51-2546cd1b77cc"
+      }
+    }
+  }
+}
