@@ -33,10 +33,6 @@ export interface IngredientsState {
   // Initialization flag
   isInitialized: boolean;
   
-  // Data sync
-  isSyncing: boolean;
-  lastSyncAt: string | null;
-  syncError: string | null;
   hasLocalChanges: boolean;
 }
 
@@ -90,11 +86,6 @@ export interface IngredientsActions {
   // Force reload sample data (for testing purposes)
   reloadSampleData: () => void;
   
-  // Data sync methods
-  syncToCloud: () => Promise<void>;
-  syncFromCloud: () => Promise<void>;
-  markLocalChanges: () => void;
-  clearSyncError: () => void;
 }
 
 export type IngredientsStore = IngredientsState & IngredientsActions;

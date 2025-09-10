@@ -8,16 +8,19 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { List, Divider, Button, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS } from '@/utils/constants';
 import { useI18n, SUPPORTED_LANGUAGES, type LanguageCode } from '@/utils/i18n';
 import { useSettingsStore } from '@/store/settings/slice';
-import { useAuthStore } from '@/store/auth/slice';
-import ProfileScreen from '@/components/auth/ProfileScreen';
+import { useIngredientsStore } from '@/store/ingredients/slice';
+import * as FileSystem from 'expo-file-system';
+import * as DocumentPicker from 'expo-document-picker';
 import { PrivacyPolicyModal } from '@/components/PrivacyPolicyModal';
 import { TermsOfServiceModal } from '@/components/TermsOfServiceModal';
 import { SupportModal } from '@/components/SupportModal';
@@ -33,6 +36,136 @@ const LANGUAGES = [
   { code: 'ko', name: 'Korean', nativeName: '한국어' },
 ];
 
+// 使用React.memo优化的SwitchItem组件，添加更严格的比较
+const SwitchItem = React.memo(({ 
+  title, 
+  subtitle, 
+  icon, 
+  value, 
+  onValueChange 
+}: {
+  title: string;
+  subtitle?: string;
+  icon: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+}) => {
+  return (
+    <View style={styles.switchItemContainer}>
+      <View style={styles.switchItemLeft}>
+        <MaterialCommunityIcons 
+          name={icon as any} 
+          size={24} 
+          color={COLORS.textSecondary}
+          style={styles.switchItemIcon}
+        />
+        <View style={styles.switchItemTextContainer}>
+          <Text style={styles.switchItemTitle}>{title}</Text>
+          {subtitle && (
+            <Text style={styles.switchItemSubtitle}>{subtitle}</Text>
+          )}
+        </View>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+        thumbColor={value ? COLORS.primary : COLORS.textDisabled}
+      />
+    </View>
+  );
+}, (prevProps, nextProps) => {
+  // 自定义比较函数，只有当实际需要的属性改变时才重新渲染
+  // 移除 onValueChange 的比较，因为函数引用可能会变化但功能相同
+  return (
+    prevProps.title === nextProps.title &&
+    prevProps.subtitle === nextProps.subtitle &&
+    prevProps.icon === nextProps.icon &&
+    prevProps.value === nextProps.value
+  );
+});
+
+// 创建独立的开关组件，避免相互影响
+const EnableNotificationsSwitch = React.memo(() => {
+  const { t } = useI18n();
+  const value = useSettingsStore(state => state.notificationsEnabled);
+  const setter = useSettingsStore(state => state.setNotificationsEnabled);
+  
+  return (
+    <SwitchItem
+      title={t('settings.enableNotifications')}
+      subtitle={t('settings.notificationsSubtitle')}
+      icon="bell"
+      value={value}
+      onValueChange={setter}
+    />
+  );
+});
+
+const DailyRemindersSwitch = React.memo(() => {
+  const { t } = useI18n();
+  const value = useSettingsStore(state => state.dailyReminders);
+  const setter = useSettingsStore(state => state.setDailyReminders);
+  
+  return (
+    <SwitchItem
+      title={t('settings.dailyReminders')}
+      subtitle={t('settings.dailyRemindersSubtitle')}
+      icon="clock"
+      value={value}
+      onValueChange={setter}
+    />
+  );
+});
+
+const NearExpiryAlertsSwitch = React.memo(() => {
+  const { t } = useI18n();
+  const value = useSettingsStore(state => state.nearExpiryAlerts);
+  const setter = useSettingsStore(state => state.setNearExpiryAlerts);
+  
+  return (
+    <SwitchItem
+      title={t('settings.nearExpiryAlerts')}
+      subtitle={t('settings.nearExpiryAlertsSubtitle')}
+      icon="alert-circle"
+      value={value}
+      onValueChange={setter}
+    />
+  );
+});
+
+const ExpiredAlertsSwitch = React.memo(() => {
+  const { t } = useI18n();
+  const value = useSettingsStore(state => state.expiredAlerts);
+  const setter = useSettingsStore(state => state.setExpiredAlerts);
+  
+  return (
+    <SwitchItem
+      title={t('settings.expiredAlerts')}
+      subtitle={t('settings.expiredAlertsSubtitle')}
+      icon="close-circle"
+      value={value}
+      onValueChange={setter}
+    />
+  );
+});
+
+const AutoSuggestExpirySwitch = React.memo(() => {
+  const { t } = useI18n();
+  const value = useSettingsStore(state => state.autoSuggestExpiry);
+  const setter = useSettingsStore(state => state.setAutoSuggestExpiry);
+  
+  return (
+    <SwitchItem
+      title={t('settings.autoSuggestExpiry')}
+      subtitle={t('settings.autoSuggestExpirySubtitle')}
+      icon="calendar"
+      value={value}
+      onValueChange={setter}
+    />
+  );
+});
+
 export default function SettingsScreen() {
   const { currentLanguage, setLanguage, t } = useI18n();
   const insets = useSafeAreaInsets();
@@ -40,98 +173,81 @@ export default function SettingsScreen() {
   const [categoriesModalVisible, setCategoriesModalVisible] = useState(false);
   const [unitsModalVisible, setUnitsModalVisible] = useState(false);
   const [locationsModalVisible, setLocationsModalVisible] = useState(false);
-  const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
   const [termsModalVisible, setTermsModalVisible] = useState(false);
   const [supportModalVisible, setSupportModalVisible] = useState(false);
 
-  const { isAuthenticated, user, initializeAuth } = useAuthStore();
+  const { ingredients, addIngredient } = useIngredientsStore();
 
+  // 使用选择器来避免不必要的重新渲染
+  const defaultNearExpiryDays = useSettingsStore(state => state.defaultNearExpiryDays);
+  const dailyReminderTime = useSettingsStore(state => state.dailyReminderTime);
+  
   const { 
     categories, 
     units, 
     locations, 
-    notificationsEnabled,
-    dailyReminders,
-    nearExpiryAlerts,
-    expiredAlerts,
-    autoSuggestExpiry,
-    defaultNearExpiryDays,
     addCategory, 
     removeCategory, 
     addUnit, 
     removeUnit, 
     addLocation, 
     removeLocation,
-    setNotificationsEnabled,
-    setDailyReminders,
-    setNearExpiryAlerts,
-    setExpiredAlerts,
-    setAutoSuggestExpiry,
-    setDefaultNearExpiryDays
+    setDefaultNearExpiryDays,
+    setDailyReminderTime
   } = useSettingsStore();
 
   const [newCategory, setNewCategory] = useState('');
   const [newUnitName, setNewUnitName] = useState('');
   const [newUnitAbbr, setNewUnitAbbr] = useState('');
   const [newLocation, setNewLocation] = useState('');
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [selectedTime, setSelectedTime] = useState(new Date());
 
-  // 使用useCallback包装所有setter函数，确保引用稳定
-  const handleSetNotificationsEnabled = React.useCallback(async (value: boolean) => {
-    console.log('Setting notifications:', value);
+
+  const handleSetDailyReminderTime = React.useCallback(async (time: { hour: number; minute: number }) => {
+    console.log('Setting daily reminder time:', time);
     try {
-      await setNotificationsEnabled(value);
-      // 可以在这里添加成功提示
+      await setDailyReminderTime(time);
     } catch (error) {
-      console.error('Failed to update notifications:', error);
-      Alert.alert(
-        t('common.error'),
-        '更新通知设置失败，请检查应用权限设置。',
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          { 
-            text: '打开设置', 
-            onPress: () => {
-              // 可以添加打开系统设置的逻辑
-              console.log('Open system settings');
-            }
-          }
-        ]
-      );
+      console.error('Failed to update daily reminder time:', error);
     }
-  }, [setNotificationsEnabled, t]);
+  }, [setDailyReminderTime]);
 
-  const handleSetDailyReminders = React.useCallback(async (value: boolean) => {
-    console.log('Setting daily reminders:', value);
-    try {
-      await setDailyReminders(value);
-    } catch (error) {
-      console.error('Failed to update daily reminders:', error);
+  const handleTimePickerOpen = React.useCallback(() => {
+    // 设置当前时间为当前设置的时间
+    const currentTime = new Date();
+    currentTime.setHours(dailyReminderTime.hour, dailyReminderTime.minute, 0, 0);
+    setSelectedTime(currentTime);
+    setTimePickerVisible(true);
+  }, [dailyReminderTime]);
+
+  const handleTimeChange = React.useCallback((event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setTimePickerVisible(false);
     }
-  }, [setDailyReminders]);
-
-  const handleSetNearExpiryAlerts = React.useCallback(async (value: boolean) => {
-    console.log('Setting near expiry alerts:', value);
-    try {
-      await setNearExpiryAlerts(value);
-    } catch (error) {
-      console.error('Failed to update near expiry alerts:', error);
+    
+    if (selectedDate) {
+      setSelectedTime(selectedDate);
+      if (Platform.OS === 'ios') {
+        // iOS上不立即关闭，让用户确认
+      } else {
+        // Android上立即保存
+        handleSetDailyReminderTime({
+          hour: selectedDate.getHours(),
+          minute: selectedDate.getMinutes()
+        });
+      }
     }
-  }, [setNearExpiryAlerts]);
+  }, [handleSetDailyReminderTime]);
 
-  const handleSetExpiredAlerts = React.useCallback(async (value: boolean) => {
-    console.log('Setting expired alerts:', value);
-    try {
-      await setExpiredAlerts(value);
-    } catch (error) {
-      console.error('Failed to update expired alerts:', error);
-    }
-  }, [setExpiredAlerts]);
-
-  const handleSetAutoSuggestExpiry = React.useCallback((value: boolean) => {
-    console.log('Setting auto suggest expiry:', value);
-    setAutoSuggestExpiry(value);
-  }, [setAutoSuggestExpiry]);
+  const handleTimeConfirm = React.useCallback(() => {
+    setTimePickerVisible(false);
+    handleSetDailyReminderTime({
+      hour: selectedTime.getHours(),
+      minute: selectedTime.getMinutes()
+    });
+  }, [selectedTime, handleSetDailyReminderTime]);
 
   // Callback functions to prevent re-renders
   const handleAddCategory = React.useCallback(() => {
@@ -153,20 +269,303 @@ export default function SettingsScreen() {
     setNewLocation('');
   }, [newLocation, addLocation]);
 
-  useEffect(() => {
-    // Initialize auth when component mounts
-    initializeAuth();
-  }, []);
 
-  const handleExportData = () => {
-    Alert.alert(
-      t('settings.exportData'),
-      'This will export all your ingredient data as a CSV file.',
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('common.save'), onPress: () => console.log('Export data') },
-      ]
-    );
+  const handleDownloadTemplate = async () => {
+    try {
+      // 生成导入模板CSV内容
+      const csvHeaders = [
+        '名称',
+        '分类',
+        '数量',
+        '单位',
+        '存放日期',
+        '过期日期',
+        '位置',
+        '备注'
+      ].join(',');
+
+      // 添加示例数据
+      const exampleRows = [
+        [
+          '"苹果"',
+          '"水果"',
+          '5',
+          '"个"',
+          '"2024-01-01"',
+          '"2024-01-15"',
+          '"冰箱"',
+          '"新鲜苹果"'
+        ].join(','),
+        [
+          '"牛奶"',
+          '"乳制品"',
+          '1',
+          '"升"',
+          '"2024-01-02"',
+          '"2024-01-10"',
+          '"冰箱"',
+          '""'
+        ].join(','),
+        [
+          '"大米"',
+          '"谷物"',
+          '2',
+          '"千克"',
+          '"2024-01-01"',
+          '"2025-01-01"',
+          '"储物柜"',
+          '"优质大米"'
+        ].join(',')
+      ];
+
+      const csvContent = [csvHeaders, ...exampleRows].join('\n');
+
+      // 生成文件名
+      const fileName = 'pantry_import_template.csv';
+
+      // 保存文件
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      // 显示成功消息
+      Alert.alert(
+        t('common.success'),
+        `导入模板已下载：${fileName}\n\n请按照模板格式填写数据，然后使用导入功能。`,
+        [{ text: t('common.ok') }]
+      );
+
+    } catch (error) {
+      console.error('Template download error:', error);
+      Alert.alert(
+        t('common.error'),
+        t('settings.templateDownloadError'),
+        [{ text: t('common.ok') }]
+      );
+    }
+  };
+
+  const handleImportData = async () => {
+    try {
+      // 选择文件
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'text/csv',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const file = result.assets[0];
+      if (!file) {
+        Alert.alert(t('common.error'), '无法读取选择的文件。', [{ text: t('common.ok') }]);
+        return;
+      }
+      
+      // 读取文件内容
+      const fileContent = await FileSystem.readAsStringAsync(file.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      // 解析CSV
+      const lines = fileContent.split('\n').filter(line => line.trim());
+      if (lines.length < 2) {
+        Alert.alert(
+          t('common.error'),
+          t('settings.invalidCSVFormat'),
+          [{ text: t('common.ok') }]
+        );
+        return;
+      }
+
+      // 解析标题行
+      const headers = lines[0]?.split(',').map(h => h.replace(/"/g, '').trim()) || [];
+      const expectedHeaders = ['名称', '分类', '数量', '单位', '存放日期', '过期日期', '位置', '备注'];
+      
+      // 验证标题
+      const isValidHeaders = expectedHeaders.every(header => headers.includes(header));
+      if (!isValidHeaders) {
+        Alert.alert(
+          t('common.error'),
+          `CSV文件标题不正确。\n\n期望的标题：${expectedHeaders.join(', ')}\n\n请下载模板文件查看正确格式。`,
+          [{ text: t('common.ok') }]
+        );
+        return;
+      }
+
+      // 解析数据行
+      const dataRows = lines.slice(1);
+      const importedIngredients = [];
+      const errors = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        try {
+          const row = dataRows[i];
+          if (!row) {
+            errors.push(`第${i + 2}行：空行`);
+            continue;
+          }
+          
+          const values = parseCSVRow(row);
+          
+          if (values.length !== expectedHeaders.length) {
+            errors.push(`第${i + 2}行：列数不匹配`);
+            continue;
+          }
+
+          // 创建食材对象
+          const ingredient = {
+            name: values[0] || '',
+            category: values[1] || '其他',
+            quantity: parseFloat(values[2] || '0') || 0,
+            unit: values[3] || '个',
+            purchase_date: values[4] || new Date().toISOString().split('T')[0]!,
+            expiration_date: values[5] || new Date().toISOString().split('T')[0]!,
+            location: values[6] || '储物柜',
+            notes: values[7] || '',
+            images: [], // 添加必需的images字段
+          };
+
+          // 验证必填字段
+          if (!ingredient.name) {
+            errors.push(`第${i + 2}行：名称为空`);
+            continue;
+          }
+
+          if (ingredient.quantity <= 0) {
+            errors.push(`第${i + 2}行：数量必须大于0`);
+            continue;
+          }
+
+          importedIngredients.push(ingredient);
+        } catch (error) {
+          errors.push(`第${i + 2}行：数据格式错误`);
+        }
+      }
+
+      // 显示导入结果
+      if (errors.length > 0) {
+        Alert.alert(
+          t('settings.importCompletedWithErrors'),
+          `成功导入：${importedIngredients.length}个食材\n错误：${errors.length}个\n\n错误详情：\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`,
+          [{ text: t('common.ok') }]
+        );
+      } else {
+        Alert.alert(
+          t('common.success'),
+          `成功导入${importedIngredients.length}个食材！`,
+          [{ text: t('common.ok') }]
+        );
+      }
+
+      // 添加导入的食材
+      for (const ingredient of importedIngredients) {
+        await addIngredient(ingredient);
+      }
+
+    } catch (error) {
+      console.error('Import error:', error);
+      Alert.alert(
+        t('common.error'),
+        t('settings.importDataError'),
+        [{ text: t('common.ok') }]
+      );
+    }
+  };
+
+  // CSV行解析函数
+  const parseCSVRow = (row: string): string[] => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < row.length; i++) {
+      const char = row[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    result.push(current.trim());
+    return result;
+  };
+
+  const handleExportData = async () => {
+    try {
+      // 检查是否有数据可导出
+      if (ingredients.length === 0) {
+        Alert.alert(
+          t('common.error'),
+          '没有数据可导出。请先添加一些食材。',
+          [{ text: t('common.ok') }]
+        );
+        return;
+      }
+
+      // 生成CSV内容
+      const csvHeaders = [
+        '名称',
+        '分类',
+        '数量',
+        '单位',
+        '存放日期',
+        '过期日期',
+        '位置',
+        '状态',
+        '备注',
+        '创建时间',
+        '更新时间'
+      ].join(',');
+
+      const csvRows = ingredients.map(ingredient => [
+        `"${ingredient.name}"`,
+        `"${ingredient.category}"`,
+        ingredient.quantity,
+        `"${ingredient.unit}"`,
+        `"${ingredient.purchase_date}"`,
+        `"${ingredient.expiration_date}"`,
+        `"${ingredient.location}"`,
+        `"${ingredient.status}"`,
+        `"${ingredient.notes || ''}"`,
+        `"${ingredient.created_at}"`,
+        `"${ingredient.updated_at}"`
+      ].join(','));
+
+      const csvContent = [csvHeaders, ...csvRows].join('\n');
+
+      // 生成文件名
+      const timestamp = new Date().toISOString().split('T')[0];
+      const fileName = `pantry_export_${timestamp}.csv`;
+
+      // 保存文件
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      // 显示成功消息
+      Alert.alert(
+        t('common.success'),
+        `数据已成功导出到：${fileName}\n\n文件已保存到应用目录，您可以通过文件管理器访问。`,
+        [{ text: t('common.ok') }]
+      );
+
+    } catch (error) {
+      console.error('Export error:', error);
+      Alert.alert(
+        t('common.error'),
+        '导出数据时发生错误。请重试。',
+        [{ text: t('common.ok') }]
+      );
+    }
   };
 
   
@@ -211,54 +610,7 @@ export default function SettingsScreen() {
     return <List.Item {...listItemProps} />;
   });
 
-  // 使用React.memo优化的SwitchItem组件，添加更严格的比较
-  const SwitchItem = React.memo(({ 
-    title, 
-    subtitle, 
-    icon, 
-    value, 
-    onValueChange 
-  }: {
-    title: string;
-    subtitle?: string;
-    icon: string;
-    value: boolean;
-    onValueChange: (value: boolean) => void;
-  }) => {
-    return (
-      <View style={styles.switchItemContainer}>
-        <View style={styles.switchItemLeft}>
-          <MaterialCommunityIcons 
-            name={icon as any} 
-            size={24} 
-            color={COLORS.textSecondary}
-            style={styles.switchItemIcon}
-          />
-          <View style={styles.switchItemTextContainer}>
-            <Text style={styles.switchItemTitle}>{title}</Text>
-            {subtitle && (
-              <Text style={styles.switchItemSubtitle}>{subtitle}</Text>
-            )}
-          </View>
-        </View>
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
-          thumbColor={value ? COLORS.primary : COLORS.textDisabled}
-        />
-      </View>
-    );
-  }, (prevProps, nextProps) => {
-    // 自定义比较函数，只有当实际需要的属性改变时才重新渲染
-    return (
-      prevProps.title === nextProps.title &&
-      prevProps.subtitle === nextProps.subtitle &&
-      prevProps.icon === nextProps.icon &&
-      prevProps.value === nextProps.value &&
-      prevProps.onValueChange === nextProps.onValueChange
-    );
-  });
+
 
   const LanguageSelector = React.memo(() => {
     const selectedLang = LANGUAGES.find(lang => lang.code === currentLanguage);
@@ -295,46 +647,13 @@ export default function SettingsScreen() {
     );
   });
 
-  // 为每个开关分别缓存配置，避免一个状态变化影响到其他开关
-  const enableNotificationsConfig = React.useMemo(() => ({
-    title: t('settings.enableNotifications'),
-    subtitle: t('settings.notificationsSubtitle'),
-    icon: "bell",
-    value: notificationsEnabled,
-    onValueChange: handleSetNotificationsEnabled
-  }), [t, notificationsEnabled, handleSetNotificationsEnabled]);
 
-  const dailyRemindersConfig = React.useMemo(() => ({
-    title: t('settings.dailyReminders'),
-    subtitle: t('settings.dailyRemindersSubtitle'),
-    icon: "clock",
-    value: dailyReminders,
-    onValueChange: handleSetDailyReminders
-  }), [t, dailyReminders, handleSetDailyReminders]);
-
-  const nearExpiryAlertsConfig = React.useMemo(() => ({
-    title: t('settings.nearExpiryAlerts'),
-    subtitle: t('settings.nearExpiryAlertsSubtitle'),
-    icon: "alert-circle",
-    value: nearExpiryAlerts,
-    onValueChange: handleSetNearExpiryAlerts
-  }), [t, nearExpiryAlerts, handleSetNearExpiryAlerts]);
-
-  const expiredAlertsConfig = React.useMemo(() => ({
-    title: t('settings.expiredAlerts'),
-    subtitle: t('settings.expiredAlertsSubtitle'),
-    icon: "close-circle",
-    value: expiredAlerts,
-    onValueChange: handleSetExpiredAlerts
-  }), [t, expiredAlerts, handleSetExpiredAlerts]);
-
-  const autoSuggestExpiryConfig = React.useMemo(() => ({
-    title: t('settings.autoSuggestExpiry'),
-    subtitle: t('settings.autoSuggestExpirySubtitle'),
-    icon: "calendar",
-    value: autoSuggestExpiry,
-    onValueChange: handleSetAutoSuggestExpiry
-  }), [t, autoSuggestExpiry, handleSetAutoSuggestExpiry]);
+  const dailyReminderTimeConfig = React.useMemo(() => ({
+    title: t('settings.dailyReminderTime'),
+    subtitle: `${dailyReminderTime.hour.toString().padStart(2, '0')}:${dailyReminderTime.minute.toString().padStart(2, '0')}`,
+    icon: "clock-outline",
+    onPress: handleTimePickerOpen
+  }), [dailyReminderTime, handleTimePickerOpen]);
 
   return (
     <LinearGradient
@@ -357,15 +676,17 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('settings.notifications')}</Text>
           <View style={styles.card}>
-            <SwitchItem {...enableNotificationsConfig} />
+            <EnableNotificationsSwitch />
             <Divider />
-            <SwitchItem {...dailyRemindersConfig} />
+            <DailyRemindersSwitch />
             <Divider />
-            <SwitchItem {...nearExpiryAlertsConfig} />
+            <SettingItem key="dailyReminderTime" {...dailyReminderTimeConfig} />
+            <Divider />
+            <NearExpiryAlertsSwitch />
             <View style={styles.dividerContainer}>
               <Divider />
             </View>
-            <SwitchItem {...expiredAlertsConfig} />
+            <ExpiredAlertsSwitch />
           </View>
         </View>
 
@@ -373,7 +694,7 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('settings.preferences')}</Text>
           <View style={styles.card}>
-            <SwitchItem {...autoSuggestExpiryConfig} />
+            <AutoSuggestExpirySwitch />
             <Divider />
             <SettingItem
               title={t('settings.defaultNearExpiryDays')}
@@ -419,10 +740,17 @@ export default function SettingsScreen() {
             />
             <Divider />
             <SettingItem
+              title={t('settings.downloadTemplate')}
+              subtitle={t('settings.downloadTemplateSubtitle')}
+              icon="file-download"
+              onPress={handleDownloadTemplate}
+            />
+            <Divider />
+            <SettingItem
               title={t('settings.importData')}
               subtitle={t('settings.importDataSubtitle')}
               icon="upload"
-              onPress={() => console.log('Import data')}
+              onPress={handleImportData}
             />
             <Divider />
             <SettingItem
@@ -434,34 +762,10 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Account */}
+        {/* Legal */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('settings.account')}</Text>
+          <Text style={styles.sectionTitle}>{t('settings.legal')}</Text>
           <View style={styles.card}>
-            <SettingItem
-              title={t('settings.profile')}
-              subtitle={isAuthenticated ? (user?.displayName || user?.email || '已登录') : t('settings.profileSubtitle')}
-              icon="account"
-              onPress={() => setProfileModalVisible(true)}
-              right={(props) => (
-                <View style={styles.profileRight}>
-                  {isAuthenticated && (
-                    <MaterialCommunityIcons 
-                      name="check-circle" 
-                      size={16} 
-                      color={COLORS.success} 
-                      style={styles.loginIndicator}
-                    />
-                  )}
-                  <MaterialCommunityIcons 
-                    {...props} 
-                    name="chevron-right" 
-                    size={24} 
-                    color={COLORS.textSecondary} 
-                  />
-                </View>
-              )}
-            />
             <Divider />
             <SettingItem
               title={t('settings.privacyPolicy')}
@@ -684,15 +988,6 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      {/* Profile Modal */}
-      <Modal
-        visible={profileModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setProfileModalVisible(false)}
-      >
-        <ProfileScreen onClose={() => setProfileModalVisible(false)} />
-      </Modal>
 
       {/* Privacy Policy Modal */}
       <PrivacyPolicyModal
@@ -711,6 +1006,55 @@ export default function SettingsScreen() {
         visible={supportModalVisible}
         onClose={() => setSupportModalVisible(false)}
       />
+
+      {/* Time Picker Modal */}
+      {timePickerVisible && (
+        <Modal
+          visible={timePickerVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setTimePickerVisible(false)}
+        >
+          <View style={styles.timePickerOverlay}>
+            <View style={styles.timePickerContainer}>
+              <View style={styles.timePickerHeader}>
+                <Text style={styles.timePickerTitle}>{t('settings.dailyReminderTime')}</Text>
+                <TouchableOpacity onPress={() => setTimePickerVisible(false)}>
+                  <MaterialCommunityIcons name="close" size={24} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              
+              <DateTimePicker
+                value={selectedTime}
+                mode="time"
+                is24Hour={true}
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handleTimeChange}
+                style={styles.timePicker}
+              />
+              
+              {Platform.OS === 'ios' && (
+                <View style={styles.timePickerButtons}>
+                  <TouchableOpacity 
+                    style={styles.timePickerButton}
+                    onPress={() => setTimePickerVisible(false)}
+                  >
+                    <Text style={styles.timePickerButtonText}>{t('common.cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.timePickerButton, styles.timePickerButtonPrimary]}
+                    onPress={handleTimeConfirm}
+                  >
+                    <Text style={[styles.timePickerButtonText, styles.timePickerButtonTextPrimary]}>
+                      {t('common.save')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
     </LinearGradient>
   );
 }
@@ -894,5 +1238,67 @@ const styles = StyleSheet.create({
   },
   loginIndicator: {
     marginRight: 4,
+  },
+  // Time picker styles
+  timePickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timePickerContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    width: '85%',
+    maxWidth: 400,
+    elevation: 10,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+  },
+  timePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  timePickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  timePicker: {
+    height: 200,
+    marginVertical: 20,
+  },
+  timePickerButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  timePickerButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.border,
+    alignItems: 'center',
+  },
+  timePickerButtonPrimary: {
+    backgroundColor: COLORS.primary,
+  },
+  timePickerButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  timePickerButtonTextPrimary: {
+    color: COLORS.surface,
   },
 });

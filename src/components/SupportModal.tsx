@@ -25,20 +25,6 @@ export const SupportModal: React.FC<SupportModalProps> = ({
   const { t } = useI18n();
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
-  const handleEmailPress = () => {
-    const email = t('support.contactEmailAddress');
-    const subject = encodeURIComponent('Support Request');
-    const body = encodeURIComponent('Please describe your issue or question here...');
-    const url = `mailto:${email}?subject=${subject}&body=${body}`;
-    
-    Linking.canOpenURL(url).then(supported => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        Alert.alert('Error', 'Cannot open email client');
-      }
-    });
-  };
 
   const handleBugReport = () => {
     const email = t('support.contactEmailAddress');
@@ -149,15 +135,6 @@ export const SupportModal: React.FC<SupportModalProps> = ({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('support.contactUs')}</Text>
             
-            <TouchableOpacity style={styles.contactItem} onPress={handleEmailPress}>
-              <MaterialCommunityIcons name="email" size={24} color={COLORS.primary} />
-              <View style={styles.contactItemContent}>
-                <Text style={styles.contactItemTitle}>{t('support.contactEmail')}</Text>
-                <Text style={styles.contactItemSubtitle}>{t('support.contactEmailText')}</Text>
-                <Text style={styles.contactItemEmail}>{t('support.contactEmailAddress')}</Text>
-              </View>
-            </TouchableOpacity>
-
             <TouchableOpacity style={styles.contactItem} onPress={handleBugReport}>
               <MaterialCommunityIcons name="bug" size={24} color={COLORS.error} />
               <View style={styles.contactItemContent}>

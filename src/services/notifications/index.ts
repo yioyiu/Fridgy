@@ -8,6 +8,7 @@ export interface NotificationSettings {
   nearExpiryAlerts: boolean;
   expiredAlerts: boolean;
   nearExpiryDays: number;
+  dailyReminderTime: { hour: number; minute: number };
 }
 
 export class NotificationService {
@@ -107,7 +108,7 @@ export class NotificationService {
       }
 
       // 更新每日提醒
-      await NotificationScheduler.scheduleDailyReminder(settings.dailyReminders);
+      await NotificationScheduler.scheduleDailyReminder(settings.dailyReminders, settings.dailyReminderTime);
 
       // 更新过期提醒
       await NotificationScheduler.scheduleExpiryAlerts(

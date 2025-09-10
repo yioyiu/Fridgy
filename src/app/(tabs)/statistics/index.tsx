@@ -17,6 +17,7 @@ import { COLORS } from '@/utils/constants';
 import { useI18n } from '@/utils/i18n';
 import { useIngredientsStore } from '@/store/ingredients/slice';
 import { CookingAdviceModal } from '@/components/ai';
+import { StatusItemsModal } from '@/components/StatusItemsModal';
 
 const { width } = Dimensions.get('window');
 
@@ -36,6 +37,8 @@ export default function StatisticsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [cookingModalVisible, setCookingModalVisible] = useState(false);
   const [nearExpiryIngredients, setNearExpiryIngredients] = useState<string[]>([]);
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<'fresh' | 'near_expiry' | 'expired' | 'used'>('fresh');
 
   useEffect(() => {
     fetchStats();
@@ -56,6 +59,56 @@ export default function StatisticsScreen() {
     if (nearExpiryIngredients.length > 0) {
       setCookingModalVisible(true);
     }
+  };
+
+  const handleStatusCardPress = (status: 'fresh' | 'near_expiry' | 'expired' | 'used') => {
+    setSelectedStatus(status);
+    setStatusModalVisible(true);
+  };
+
+  const getStatusItems = (status: 'fresh' | 'near_expiry' | 'expired' | 'used') => {
+    // 获取当前时间范围
+    const getTimeRange = (timeframe: 'week' | 'month' | 'quarter' | 'year') => {
+      const now = new Date();
+      const start = new Date();
+      
+      switch (timeframe) {
+        case 'week':
+          start.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          start.setMonth(now.getMonth() - 1);
+          break;
+        case 'quarter':
+          start.setMonth(now.getMonth() - 3);
+          break;
+        case 'year':
+          start.setFullYear(now.getFullYear() - 1);
+          break;
+      }
+      
+      return {
+        start: start.toISOString().split('T')[0]!,
+        end: now.toISOString().split('T')[0]!
+      };
+    };
+
+    // 过滤食材按时间范围
+    const filterIngredientsByTimeRange = (ingredients: any[], timeRange: { start: string; end: string }) => {
+      return ingredients.filter(ingredient => {
+        // 使用created_at作为主要过滤字段（食材添加时间）
+        const createdDate = ingredient.created_at.split('T')[0]!;
+        return createdDate >= timeRange.start && createdDate <= timeRange.end;
+      });
+    };
+
+    // 获取当前时间范围
+    const timeRange = getTimeRange(selectedTimeframe);
+    
+    // 先按时间范围过滤，再按状态过滤
+    const timeFilteredItems = filterIngredientsByTimeRange(ingredients, timeRange);
+    
+    return timeFilteredItems.filter(item => item.status === status);
   };
 
   const handleRefresh = async () => {
@@ -105,15 +158,16 @@ export default function StatisticsScreen() {
     return ((freshWeight + nearExpiryWeight + expiredWeight + usedWeight) / currentStats.total) * 100;
   };
 
-  const StatCard = ({ title, value, icon, color, subtitle, trend }: {
+  const StatCard = ({ title, value, icon, color, subtitle, trend, onPress }: {
     title: string;
     value: number | string;
     icon: string;
     color: string;
     subtitle?: string;
     trend?: string;
-  }) => (
-    <View style={[styles.statCard, { borderLeftColor: color }]}>
+    onPress?: () => void;
+  }) => {
+    const CardContent = (
       <View style={styles.statContent}>
         <View style={styles.statHeader}>
           <View style={[styles.iconContainer, { backgroundColor: color + '20' }]}>
@@ -136,8 +190,26 @@ export default function StatisticsScreen() {
           </View>
         )}
       </View>
-    </View>
-  );
+    );
+
+    if (onPress) {
+      return (
+        <TouchableOpacity
+          style={[styles.statCard, { borderLeftColor: color }]}
+          onPress={onPress}
+          activeOpacity={0.8}
+        >
+          {CardContent}
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <View style={[styles.statCard, { borderLeftColor: color }]}>
+        {CardContent}
+      </View>
+    );
+  };
 
   const ProgressCard = ({ title, current, total, color, showPercentage = true }: {
     title: string;
@@ -347,6 +419,7 @@ export default function StatisticsScreen() {
                 icon="check-circle"
                 color={COLORS.fresh}
                 subtitle={t('statistics.readyToUse')}
+                onPress={() => handleStatusCardPress('fresh')}
               />
               <StatCard
                 title={t('dashboard.nearExpiry')}
@@ -354,6 +427,7 @@ export default function StatisticsScreen() {
                 icon="alert-circle"
                 color={COLORS.nearExpiry}
                 subtitle={t('statistics.useSoon')}
+                onPress={() => handleStatusCardPress('near_expiry')}
               />
             </View>
             <View style={styles.statusRow}>
@@ -363,6 +437,7 @@ export default function StatisticsScreen() {
                 icon="close-circle"
                 color={COLORS.expired}
                 subtitle={t('statistics.needsDisposal')}
+                onPress={() => handleStatusCardPress('expired')}
               />
               <StatCard
                 title={t('dashboard.used')}
@@ -370,6 +445,7 @@ export default function StatisticsScreen() {
                 icon="check"
                 color={COLORS.used}
                 subtitle={t('statistics.consumed')}
+                onPress={() => handleStatusCardPress('used')}
               />
             </View>
           </View>
@@ -525,6 +601,15 @@ export default function StatisticsScreen() {
         visible={cookingModalVisible}
         ingredients={nearExpiryIngredients}
         onClose={() => setCookingModalVisible(false)}
+      />
+
+      {/* 状态物品列表模态框 */}
+      <StatusItemsModal
+        visible={statusModalVisible}
+        onClose={() => setStatusModalVisible(false)}
+        status={selectedStatus}
+        items={getStatusItems(selectedStatus)}
+        timeframe={selectedTimeframe}
       />
     </LinearGradient>
   );
@@ -840,6 +925,7 @@ const styles = StyleSheet.create({
   comingSoonCard: {
     marginHorizontal: 16,
     marginBottom: 32,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,

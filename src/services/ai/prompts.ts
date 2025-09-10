@@ -3,7 +3,7 @@ import { LanguageCode } from '@/utils/i18n';
 // AI提示词模板
 export const AI_PROMPTS = {
   en: {
-    storageAnalysis: (itemName: string) => `What is the best storage time and storage method for "${itemName}"? Please answer in the following format: "${itemName}" "storage_time" "storage_method"`,
+    storageAnalysis: (itemName: string) => `What is the best storage time and storage method for "${itemName}"?`,
     
     cookingAdvice: (ingredients: string[]) => `I have the following ingredients that are about to expire: ${ingredients.join(', ')}. Please suggest 2-3 simple and practical cooking methods or recipes to avoid food waste. Please provide the answer in English with clear cooking steps.`,
     
@@ -12,7 +12,7 @@ export const AI_PROMPTS = {
   },
   
   zh: {
-    storageAnalysis: (itemName: string) => `请问 "${itemName}" 最佳储藏时间为多少？最佳储藏方式是什么？请按照以下格式回答："${itemName}" "储藏时间" "储藏方式"`,
+    storageAnalysis: (itemName: string) => `请问 "${itemName}" 最佳储藏时间为多少？最佳储藏方式是什么？`,
     
     cookingAdvice: (ingredients: string[]) => `我有以下即将过期的食材：${ingredients.join('、')}。请建议2-3种简单实用的烹饪方法或食谱，以避免食物浪费。请用中文回答，并提供清晰的烹饪步骤。`,
     
@@ -20,7 +20,7 @@ export const AI_PROMPTS = {
   },
   
   es: {
-    storageAnalysis: (itemName: string) => `¿Cuál es el mejor tiempo de almacenamiento y método de almacenamiento para "${itemName}"? Por favor responde en el siguiente formato: "${itemName}" "tiempo_almacenamiento" "método_almacenamiento"`,
+    storageAnalysis: (itemName: string) => `¿Cuál es el mejor tiempo de almacenamiento y método de almacenamiento para "${itemName}"?`,
     
     cookingAdvice: (ingredients: string[]) => `Tengo los siguientes ingredientes que están a punto de caducar: ${ingredients.join(', ')}. Por favor sugiere 2-3 métodos de cocina simples y prácticos o recetas para evitar el desperdicio de comida. Por favor proporciona la respuesta en español con pasos de cocina claros.`,
     
@@ -28,7 +28,7 @@ export const AI_PROMPTS = {
   },
   
   fr: {
-    storageAnalysis: (itemName: string) => `Quel est le meilleur temps de stockage et méthode de stockage pour "${itemName}" ? Veuillez répondre dans le format suivant : "${itemName}" "temps_stockage" "méthode_stockage"`,
+    storageAnalysis: (itemName: string) => `Quel est le meilleur temps de stockage et méthode de stockage pour "${itemName}" ?`,
     
     cookingAdvice: (ingredients: string[]) => `J'ai les ingrédients suivants qui sont sur le point d'expirer : ${ingredients.join(', ')}. Veuillez suggérer 2-3 méthodes de cuisine simples et pratiques ou recettes pour éviter le gaspillage alimentaire. Veuillez fournir la réponse en français avec des étapes de cuisine claires.`,
     
@@ -36,7 +36,7 @@ export const AI_PROMPTS = {
   },
   
   de: {
-    storageAnalysis: (itemName: string) => `Was ist die beste Lagerzeit und Lagermethode für "${itemName}"? Bitte antworten Sie im folgenden Format: "${itemName}" "lagerzeit" "lagermethode"`,
+    storageAnalysis: (itemName: string) => `Was ist die beste Lagerzeit und Lagermethode für "${itemName}"?`,
     
     cookingAdvice: (ingredients: string[]) => `Ich habe folgende Zutaten, die bald ablaufen: ${ingredients.join(', ')}. Bitte schlagen Sie 2-3 einfache und praktische Kochmethoden oder Rezepte vor, um Lebensmittelverschwendung zu vermeiden. Bitte geben Sie die Antwort auf Deutsch mit klaren Kochschritten an.`,
     
@@ -44,7 +44,7 @@ export const AI_PROMPTS = {
   },
   
   ja: {
-    storageAnalysis: (itemName: string) => `"${itemName}" の最適な保存期間と保存方法は何ですか？次の形式で答えてください："${itemName}" "保存期間" "保存方法"`,
+    storageAnalysis: (itemName: string) => `"${itemName}" の最適な保存期間と保存方法は何ですか？`,
     
     cookingAdvice: (ingredients: string[]) => `以下の賞味期限が近い食材があります：${ingredients.join('、')}。食材の無駄を避けるための2-3つの簡単で実用的な調理方法やレシピを提案してください。明確な調理手順を日本語で答えてください。`,
     
@@ -52,7 +52,7 @@ export const AI_PROMPTS = {
   },
   
   ko: {
-    storageAnalysis: (itemName: string) => `"${itemName}"의 최적 보관 시간과 보관 방법은 무엇입니까? 다음 형식으로 답변해 주세요: "${itemName}" "보관_시간" "보관_방법"`,
+    storageAnalysis: (itemName: string) => `"${itemName}"의 최적 보관 시간과 보관 방법은 무엇입니까?`,
     
     cookingAdvice: (ingredients: string[]) => `다음과 같은 유통기한이 임박한 식재료가 있습니다: ${ingredients.join(', ')}. 음식 낭비를 피하기 위한 2-3가지 간단하고 실용적인 요리 방법이나 레시피를 제안해 주세요. 명확한 요리 단계를 한국어로 답변해 주세요.`,
     

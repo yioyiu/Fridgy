@@ -106,7 +106,7 @@ export class NotificationPermissions {
     // Android 通知渠道配置
     if (Platform.OS === 'android') {
       Notifications.setNotificationChannelAsync('default', {
-        name: 'Fridgy Notifications',
+        name: 'Pantry Notifications',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF231F7C',

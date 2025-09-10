@@ -1,4 +1,4 @@
-# Ingredient Manager - Setup Guide
+# Pantry - Setup Guide
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd ingredient-manager
+   cd pantry
    ```
 
 2. **Install dependencies**

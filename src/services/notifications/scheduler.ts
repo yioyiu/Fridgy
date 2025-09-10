@@ -50,7 +50,10 @@ export class NotificationScheduler {
   /**
    * 安排每日提醒通知
    */
-  static async scheduleDailyReminder(enabled: boolean): Promise<void> {
+  static async scheduleDailyReminder(
+    enabled: boolean, 
+    reminderTime: { hour: number; minute: number } = { hour: 8, minute: 0 }
+  ): Promise<void> {
     // 先取消现有的每日提醒
     await this.cancelNotificationsByType('daily_reminder');
 
@@ -59,18 +62,9 @@ export class NotificationScheduler {
     }
 
     try {
-      // 设置每天早上8点的提醒
-      const trigger = new Date();
-      trigger.setHours(8, 0, 0, 0);
-      
-      // 如果今天的8点已经过了，设置为明天8点
-      if (trigger.getTime() <= Date.now()) {
-        trigger.setDate(trigger.getDate() + 1);
-      }
-
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: '🌅 Fridgy 早安提醒',
+          title: '🌅 Pantry 早安提醒',
           body: '查看您的食材库存，优先使用即将过期的物品！',
           data: { 
             type: 'daily_reminder',
@@ -78,13 +72,13 @@ export class NotificationScheduler {
           },
         },
         trigger: {
-          hour: 8,
-          minute: 0,
+          hour: reminderTime.hour,
+          minute: reminderTime.minute,
           repeats: true,
         } as any, // 传统日历触发器
       });
 
-      console.log('Daily reminder scheduled for 8:00 AM');
+      console.log(`Daily reminder scheduled for ${reminderTime.hour}:${reminderTime.minute.toString().padStart(2, '0')}`);
     } catch (error) {
       console.error('Error scheduling daily reminder:', error);
     }
@@ -210,7 +204,7 @@ export class NotificationScheduler {
   static async sendTestNotification(): Promise<void> {
     try {
       await this.sendImmediateNotification({
-        title: '🧪 Fridgy 测试通知',
+        title: '🧪 Pantry 测试通知',
         body: '通知功能正常工作！您已成功启用推送通知。',
         data: {
           type: 'test',

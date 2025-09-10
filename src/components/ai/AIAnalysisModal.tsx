@@ -125,12 +125,10 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
           <View style={styles.resultContent}>
             <Text style={styles.resultText}>
               <Text style={styles.itemNameText}>"{analysisResult.item}"</Text>
-              <Text> {t('ai.storageTime')} </Text>
-              <Text style={styles.durationText}>"{analysisResult.duration}"</Text>
+              <Text> {t('ai.storageTimeAndMethod')}</Text>
             </Text>
             <Text style={styles.resultText}>
-              <Text>{t('ai.storageMethod')}：</Text>
-              <Text style={styles.methodText}>{analysisResult.storageMethod}</Text>
+              <Text style={styles.methodText}>{analysisResult.rawResponse || `${analysisResult.duration}，${analysisResult.storageMethod}`}</Text>
             </Text>
           </View>
           <View style={styles.tipContainer}>

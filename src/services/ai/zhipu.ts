@@ -77,15 +77,14 @@ class ZhipuService {
 
       console.log('智谱AI返回结果:', content);
 
-      // 解析回复内容，提取物品名、时长和储藏方式
-      let result = this.parseResponse(content, itemName);
-      
-      // 如果不是中文，翻译储藏方式
-      if (currentLanguage !== 'zh' && result) {
-        result.storageMethod = translateStorageMethod(result.storageMethod, currentLanguage);
-      }
-      
-      return result;
+      // 直接返回AI的原始回答，不进行格式解析
+      return {
+        item: itemName,
+        duration: '', // 不再使用
+        storageMethod: '', // 不再使用
+        source: '智谱AI',
+        rawResponse: content
+      };
 
     } catch (error) {
       console.error('智谱AI Error analyzing storage time:', error);

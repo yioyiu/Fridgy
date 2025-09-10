@@ -6,6 +6,7 @@ import { DEFAULT_UNITS } from '@/utils/constants/units';
 import { DEFAULT_LOCATIONS } from '@/utils/constants/locations';
 import type { Category, Unit, Location } from '@/utils/types/ingredient';
 import { notificationService } from '@/services/notifications';
+import { statusMonitor } from '@/services/notifications/statusMonitor';
 
 interface SettingsState {
   categories: Category[];
@@ -19,6 +20,8 @@ interface SettingsState {
   autoSuggestExpiry: boolean;
   // Default near expiry days
   defaultNearExpiryDays: number;
+  // Daily reminder time
+  dailyReminderTime: { hour: number; minute: number };
   // Actions
   addCategory: (name: string) => void;
   removeCategory: (id: string) => void;
@@ -33,6 +36,7 @@ interface SettingsState {
   setExpiredAlerts: (enabled: boolean) => Promise<void>;
   setAutoSuggestExpiry: (enabled: boolean) => void;
   setDefaultNearExpiryDays: (days: number) => Promise<void>;
+  setDailyReminderTime: (time: { hour: number; minute: number }) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -48,6 +52,7 @@ export const useSettingsStore = create<SettingsState>()(
       expiredAlerts: false,
       autoSuggestExpiry: true,
       defaultNearExpiryDays: 3,
+      dailyReminderTime: { hour: 8, minute: 0 },
       addCategory: (name: string) => set((state) => ({
         categories: [
           ...state.categories,
@@ -115,17 +120,24 @@ export const useSettingsStore = create<SettingsState>()(
             await notificationService.disableNotifications();
           }
           
-          // 更新状态
-          set({ notificationsEnabled: enabled });
-          
-          // 同步所有通知设置
-          const state = get();
-          await notificationService.updateSettings({
-            enabled,
-            dailyReminders: state.dailyReminders,
-            nearExpiryAlerts: state.nearExpiryAlerts,
-            expiredAlerts: state.expiredAlerts,
-            nearExpiryDays: state.defaultNearExpiryDays,
+          // 更新状态并同步通知设置，避免多次状态读取
+          set((state) => {
+            // 清除状态监控缓存
+            statusMonitor.clearSettingsCache();
+            
+            // 异步更新通知服务，不阻塞状态更新
+            notificationService.updateSettings({
+              enabled,
+              dailyReminders: state.dailyReminders,
+              nearExpiryAlerts: state.nearExpiryAlerts,
+              expiredAlerts: state.expiredAlerts,
+              nearExpiryDays: state.defaultNearExpiryDays,
+              dailyReminderTime: state.dailyReminderTime,
+            }).catch(error => {
+              console.error('Error updating notification settings:', error);
+            });
+            
+            return { notificationsEnabled: enabled };
           });
           
         } catch (error) {
@@ -134,51 +146,75 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setDailyReminders: async (enabled: boolean) => {
         console.log('Store: Setting dailyReminders to:', enabled);
-        set({ dailyReminders: enabled });
         
-        // 同步通知设置
-        const state = get();
-        if (state.notificationsEnabled) {
-          await notificationService.updateSettings({
-            enabled: state.notificationsEnabled,
-            dailyReminders: enabled,
-            nearExpiryAlerts: state.nearExpiryAlerts,
-            expiredAlerts: state.expiredAlerts,
-            nearExpiryDays: state.defaultNearExpiryDays,
-          });
-        }
+        set((state) => {
+          // 清除状态监控缓存
+          statusMonitor.clearSettingsCache();
+          
+          // 异步更新通知服务，不阻塞状态更新
+          if (state.notificationsEnabled) {
+            notificationService.updateSettings({
+              enabled: state.notificationsEnabled,
+              dailyReminders: enabled,
+              nearExpiryAlerts: state.nearExpiryAlerts,
+              expiredAlerts: state.expiredAlerts,
+              nearExpiryDays: state.defaultNearExpiryDays,
+              dailyReminderTime: state.dailyReminderTime,
+            }).catch(error => {
+              console.error('Error updating notification settings:', error);
+            });
+          }
+          
+          return { dailyReminders: enabled };
+        });
       },
       setNearExpiryAlerts: async (enabled: boolean) => {
         console.log('Store: Setting nearExpiryAlerts to:', enabled);
-        set({ nearExpiryAlerts: enabled });
         
-        // 同步通知设置
-        const state = get();
-        if (state.notificationsEnabled) {
-          await notificationService.updateSettings({
-            enabled: state.notificationsEnabled,
-            dailyReminders: state.dailyReminders,
-            nearExpiryAlerts: enabled,
-            expiredAlerts: state.expiredAlerts,
-            nearExpiryDays: state.defaultNearExpiryDays,
-          });
-        }
+        set((state) => {
+          // 清除状态监控缓存
+          statusMonitor.clearSettingsCache();
+          
+          // 异步更新通知服务，不阻塞状态更新
+          if (state.notificationsEnabled) {
+            notificationService.updateSettings({
+              enabled: state.notificationsEnabled,
+              dailyReminders: state.dailyReminders,
+              nearExpiryAlerts: enabled,
+              expiredAlerts: state.expiredAlerts,
+              nearExpiryDays: state.defaultNearExpiryDays,
+              dailyReminderTime: state.dailyReminderTime,
+            }).catch(error => {
+              console.error('Error updating notification settings:', error);
+            });
+          }
+          
+          return { nearExpiryAlerts: enabled };
+        });
       },
       setExpiredAlerts: async (enabled: boolean) => {
         console.log('Store: Setting expiredAlerts to:', enabled);
-        set({ expiredAlerts: enabled });
         
-        // 同步通知设置
-        const state = get();
-        if (state.notificationsEnabled) {
-          await notificationService.updateSettings({
-            enabled: state.notificationsEnabled,
-            dailyReminders: state.dailyReminders,
-            nearExpiryAlerts: state.nearExpiryAlerts,
-            expiredAlerts: enabled,
-            nearExpiryDays: state.defaultNearExpiryDays,
-          });
-        }
+        set((state) => {
+          // 清除状态监控缓存
+          statusMonitor.clearSettingsCache();
+          
+          // 异步更新通知服务，不阻塞状态更新
+          if (state.notificationsEnabled) {
+            notificationService.updateSettings({
+              enabled: state.notificationsEnabled,
+              dailyReminders: state.dailyReminders,
+              nearExpiryAlerts: state.nearExpiryAlerts,
+              expiredAlerts: enabled,
+              nearExpiryDays: state.defaultNearExpiryDays,
+              dailyReminderTime: state.dailyReminderTime,
+            }).catch(error => {
+              console.error('Error updating notification settings:', error);
+            });
+          }
+          
+          return { expiredAlerts: enabled };
+        });
       },
       setAutoSuggestExpiry: (enabled: boolean) => {
         console.log('Store: Setting autoSuggestExpiry to:', enabled);
@@ -197,12 +233,30 @@ export const useSettingsStore = create<SettingsState>()(
             nearExpiryAlerts: state.nearExpiryAlerts,
             expiredAlerts: state.expiredAlerts,
             nearExpiryDays: days,
+            dailyReminderTime: state.dailyReminderTime,
+          });
+        }
+      },
+      setDailyReminderTime: async (time: { hour: number; minute: number }) => {
+        console.log('Store: Setting dailyReminderTime to:', time);
+        set({ dailyReminderTime: time });
+        
+        // 同步通知设置
+        const state = get();
+        if (state.notificationsEnabled) {
+          await notificationService.updateSettings({
+            enabled: state.notificationsEnabled,
+            dailyReminders: state.dailyReminders,
+            nearExpiryAlerts: state.nearExpiryAlerts,
+            expiredAlerts: state.expiredAlerts,
+            nearExpiryDays: state.defaultNearExpiryDays,
+            dailyReminderTime: time,
           });
         }
       },
     }),
     {
-      name: 'fridgy-settings',
+      name: 'pantry-settings',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({ 
         categories: s.categories, 
@@ -213,7 +267,8 @@ export const useSettingsStore = create<SettingsState>()(
         nearExpiryAlerts: s.nearExpiryAlerts,
         expiredAlerts: s.expiredAlerts,
         autoSuggestExpiry: s.autoSuggestExpiry,
-        defaultNearExpiryDays: s.defaultNearExpiryDays
+        defaultNearExpiryDays: s.defaultNearExpiryDays,
+        dailyReminderTime: s.dailyReminderTime
       }),
     }
   )

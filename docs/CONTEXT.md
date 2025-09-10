@@ -1,4 +1,4 @@
-# Ingredient Manager — Developer Specification
+# Pantry — Developer Specification
 
 > **Purpose:** This document describes the functional and technical design for a mobile-first productivity app that helps users manage home ingredients, avoid spoilage, and reduce waste. It is written for application developers (frontend, backend, mobile, QA) so they can implement the product reliably.
 
@@ -508,7 +508,7 @@ CREATE POLICY "Public read access to products" ON products FOR SELECT USING (tru
 ### Root Directory Structure
 
 ```
-ingredient-manager/
+pantry/
 ├── app/                          # Expo Router app directory
 ├── src/                          # Source code
 ├── assets/                       # Static assets
@@ -858,8 +858,8 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'Ingredient Manager',
-  slug: 'ingredient-manager',
+  name: 'Pantry',
+  slug: 'pantry',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
@@ -910,7 +910,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-secure-store',
     'expo-haptics'
   ],
-  scheme: 'ingredient-manager',
+  scheme: 'fridgy',
   experiments: {
     typedRoutes: true
   }

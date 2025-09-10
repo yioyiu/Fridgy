@@ -8,6 +8,7 @@ interface StorageAnalysisResult {
   duration: string;
   storageMethod: string;
   source: '智谱AI' | 'DeepSeek AI' | '本地分析';
+  rawResponse?: string; // 添加原始AI回答字段
 }
 
 interface CookingAdviceResult {
@@ -177,6 +178,54 @@ class AIManager {
       '核桃': { duration: '6个月-1年', method: '干燥密封' },
       '杏仁': { duration: '1年', method: '干燥密封' },
       '瓜子': { duration: '6个月', method: '干燥密封' },
+      '腰果': { duration: '6个月-1年', method: '干燥密封' },
+      '开心果': { duration: '6个月-1年', method: '干燥密封' },
+      
+      // 更多水果
+      '牛油果': { duration: '5-7天', method: '室温保存' },
+      '火龙果': { duration: '1-2周', method: '冷藏保存' },
+      '榴莲': { duration: '3-5天', method: '室温保存' },
+      '山竹': { duration: '3-5天', method: '冷藏保存' },
+      '荔枝': { duration: '3-5天', method: '冷藏保存' },
+      '龙眼': { duration: '3-5天', method: '冷藏保存' },
+      '菠萝': { duration: '1-2周', method: '室温保存' },
+      '椰子': { duration: '2-3周', method: '室温保存' },
+      
+      // 更多蔬菜
+      '韭菜': { duration: '3-5天', method: '冷藏保存' },
+      '香菜': { duration: '3-5天', method: '冷藏保存' },
+      '生菜': { duration: '3-5天', method: '冷藏保存' },
+      '小白菜': { duration: '3-5天', method: '冷藏保存' },
+      '油菜': { duration: '3-5天', method: '冷藏保存' },
+      '菠菜': { duration: '3-5天', method: '冷藏保存' },
+      '茼蒿': { duration: '3-5天', method: '冷藏保存' },
+      '空心菜': { duration: '3-5天', method: '冷藏保存' },
+      
+      // 更多调料
+      '料酒': { duration: '1-2年', method: '阴凉密封' },
+      '生抽': { duration: '2-3年', method: '室温密封' },
+      '老抽': { duration: '2-3年', method: '室温密封' },
+      '蚝油': { duration: '1-2年', method: '冷藏保存' },
+      '豆瓣酱': { duration: '1-2年', method: '室温密封' },
+      '番茄酱': { duration: '1年', method: '冷藏保存' },
+      '沙拉酱': { duration: '6个月', method: '冷藏保存' },
+      '芥末': { duration: '1-2年', method: '冷藏保存' },
+      
+      // 更多主食
+      '馒头': { duration: '2-3天', method: '室温保存' },
+      '包子': { duration: '1-2天', method: '冷藏保存' },
+      '饺子': { duration: '1-2天', method: '冷藏保存' },
+      '馄饨': { duration: '1-2天', method: '冷藏保存' },
+      '汤圆': { duration: '1-2天', method: '冷藏保存' },
+      '年糕': { duration: '3-5天', method: '冷藏保存' },
+      
+      // 更多豆制品
+      '豆腐': { duration: '3-5天', method: '冷藏保存' },
+      '豆浆': { duration: '1-2天', method: '冷藏保存' },
+      '豆腐干': { duration: '1周', method: '冷藏保存' },
+      '腐竹': { duration: '6个月', method: '干燥密封' },
+      '豆皮': { duration: '3-5天', method: '冷藏保存' },
+      '豆腐乳': { duration: '1年', method: '室温密封' },
     };
 
     // 查找精确匹配
@@ -199,23 +248,46 @@ class AIManager {
       } else if (itemName.includes('菜') || itemName.includes('蔬')) {
         storageInfo = { duration: '3-7天', method: '冷藏保存' };
       } else if (itemName.includes('果') || itemName.includes('水果')) {
-        storageInfo = { duration: '1-2周', method: '冷藏保存' };
-      } else if (itemName.includes('奶') || itemName.includes('酸奶')) {
+        // 水果根据类型区分储藏方式
+        if (itemName.includes('香蕉') || itemName.includes('芒果') || itemName.includes('牛油果')) {
+          storageInfo = { duration: '5-7天', method: '室温保存' };
+        } else {
+          storageInfo = { duration: '1-2周', method: '冷藏保存' };
+        }
+      } else if (itemName.includes('奶') || itemName.includes('酸奶') || itemName.includes('鸡蛋')) {
         storageInfo = { duration: '5-10天', method: '冷藏保存' };
-      } else if (itemName.includes('米') || itemName.includes('面')) {
+      } else if (itemName.includes('米') || itemName.includes('面') || itemName.includes('豆') || itemName.includes('坚果')) {
         storageInfo = { duration: '6个月-1年', method: '干燥密封' };
-      } else if (itemName.includes('油') || itemName.includes('酱') || itemName.includes('醋')) {
+      } else if (itemName.includes('油') || itemName.includes('酱') || itemName.includes('醋') || itemName.includes('蜂蜜')) {
         storageInfo = { duration: '1-3年', method: '室温密封' };
+      } else if (itemName.includes('土豆') || itemName.includes('洋葱') || itemName.includes('大蒜') || itemName.includes('生姜')) {
+        storageInfo = { duration: '2-4周', method: '阴凉通风处' };
+      } else if (itemName.includes('面包') || itemName.includes('馒头')) {
+        storageInfo = { duration: '3-5天', method: '室温密封' };
+      } else if (itemName.includes('盐') || itemName.includes('糖') || itemName.includes('胡椒粉')) {
+        storageInfo = { duration: '2-3年', method: '干燥密封' };
       } else {
         storageInfo = { duration: '请查看包装说明', method: '按包装说明' };
       }
     }
     
+    // 构造本地分析的原始回答
+    const rawResponse = currentLanguage === 'zh' 
+      ? `${itemName} 最佳储藏时间和储藏方式为：${storageInfo.duration}，${storageInfo.method}`
+      : currentLanguage === 'en'
+      ? `The best storage time and storage method for ${itemName} are: ${storageInfo.duration}, ${currentLanguage !== 'zh' ? translateStorageMethod(storageInfo.method, currentLanguage) : storageInfo.method}`
+      : `${itemName} ${currentLanguage === 'es' ? 'El mejor tiempo y método de almacenamiento son:' : 
+                   currentLanguage === 'fr' ? 'Le meilleur temps et méthode de stockage sont:' :
+                   currentLanguage === 'de' ? 'Die beste Lagerzeit und Lagermethode sind:' :
+                   currentLanguage === 'ja' ? '最適な保存時間と保存方法は：' :
+                   currentLanguage === 'ko' ? '최적의 보관 시간과 보관 방법은:' : ''} ${storageInfo.duration}，${currentLanguage !== 'zh' ? translateStorageMethod(storageInfo.method, currentLanguage) : storageInfo.method}`;
+    
     return {
       item: itemName,
       duration: storageInfo.duration,
       storageMethod: currentLanguage !== 'zh' ? translateStorageMethod(storageInfo.method, currentLanguage) : storageInfo.method,
-      source: '本地分析'
+      source: '本地分析',
+      rawResponse: rawResponse
     };
   }
 

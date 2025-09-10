@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "Ingredient Manager",
-    "slug": "ingredient-manager",
+    "name": "Fridgy",
+    "slug": "fridgy",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/png/icon.png",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/png/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#4CAF50"
     },
@@ -16,19 +16,20 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ingredientmanager.app",
+      "bundleIdentifier": "com.fridgy.app",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan barcodes and take photos of ingredients.",
         "NSPhotoLibraryUsageDescription": "This app accesses your photo library to add ingredient images.",
         "NSLocationWhenInUseUsageDescription": "This app uses location to suggest nearby stores.",
-        "NSUserNotificationsUsageDescription": "This app sends notifications to remind you about expiring ingredients."
+        "NSUserNotificationsUsageDescription": "This app sends notifications to remind you about expiring ingredients.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.ingredientmanager.app",
+      "package": "com.fridgy.app",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/png/icon.png",
         "backgroundColor": "#4CAF50"
       },
       "permissions": [
@@ -49,25 +50,16 @@
     "plugins": [
       "expo-router",
       "expo-camera",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#4CAF50",
-          "sounds": [
-            "./assets/notification.wav"
-          ]
-        }
-      ]
+      "expo-notifications"
     ],
-    "scheme": "ingredient-manager",
+    "scheme": "fridgy",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "ef74bbf4-a938-464e-9c51-2546cd1b77cc"
+        "projectId": "3ae93e28-1b5a-4890-80b2-66aa8186006d"
       }
     }
   }

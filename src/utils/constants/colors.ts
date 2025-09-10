@@ -15,9 +15,9 @@ export const COLORS = {
   accentLight: '#EDE9FE',
   
   // Fresh green background like in the image
-  backgroundGreen: '#B8E651', // Main bright green background
-  backgroundGreenLight: '#D4F367',
-  backgroundGreenDark: '#9FD842',
+  backgroundGreen: '#D4F367', // Main bright green background (调淡)
+  backgroundGreenLight: '#E8F7A3', // 更淡的绿色
+  backgroundGreenDark: '#C1E85A', // 稍深的绿色
   
   // Status colors - Clean and modern
   success: '#10B981', // Emerald green
@@ -74,11 +74,11 @@ export const COLORS = {
   highlight: '#F8FAFC',
   
   // Fresh gradient colors - Multi-step like the image background
-  gradientStart: '#B8E651', // Bright green
-  gradientMiddle1: '#A7E642', // Slightly darker
-  gradientMiddle2: '#96E533', // Medium green
-  gradientMiddle3: '#85E424', // Deeper green
-  gradientEnd: '#74E315', // Richest green
+  gradientStart: '#D4F367', // Bright green (调淡)
+  gradientMiddle1: '#C8F05A', // Slightly darker (调淡)
+  gradientMiddle2: '#BCED4D', // Medium green (调淡)
+  gradientMiddle3: '#B0EA40', // Deeper green (调淡)
+  gradientEnd: '#A4E733', // Richest green (调淡)
 } as const;
 
 export type ColorKey = keyof typeof COLORS;

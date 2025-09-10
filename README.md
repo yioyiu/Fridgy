@@ -1,4 +1,4 @@
-# Ingredient Manager
+# Pantry
 
 A mobile-first productivity app that helps users manage home ingredients, avoid spoilage, and reduce waste.
 
@@ -81,7 +81,7 @@ src/
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd ingredient-manager
+   cd pantry
    ```
 
 2. **Install dependencies**

@@ -7,6 +7,7 @@ import { DEFAULT_CATEGORIES, DEFAULT_UNITS, DEFAULT_LOCATIONS } from '@/utils/co
 import { SAMPLE_INGREDIENTS } from '@/utils/helpers/sampleData';
 import { IngredientsAPI } from '@/services/api/ingredients';
 import { notificationService } from '@/services/notifications';
+import { statusMonitor } from '@/services/notifications/statusMonitor';
 
 // Helper functions for calculating ingredient status and freshness
 const calculateStatus = (expirationDate: string): 'fresh' | 'near_expiry' | 'expired' | 'used' => {
@@ -106,10 +107,6 @@ const initialState = {
   // Initialization flag
   isInitialized: false,
   
-  // Data sync
-  isSyncing: false,
-  lastSyncAt: null,
-  syncError: null,
   hasLocalChanges: false,
 };
 
@@ -136,6 +133,12 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
             isLoading: false,
             isInitialized: true 
           });
+
+          // 启动状态监控
+          statusMonitor.startMonitoring(updatedSampleIngredients);
+          
+          // 立即检查一次状态变化
+          await statusMonitor.checkStatusChangesNow(updatedSampleIngredients);
         } else {
           set({ isLoading: false });
         }
@@ -249,24 +252,10 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
         // 添加食材后自动更新统计数据
         await get().fetchStats();
         
-        // 添加食材后标记本地更改
-        get().markLocalChanges();
         
-        // 同步通知设置（当食材列表变化时）
+        // 更新状态监控
         const updatedIngredients = get().ingredients;
-        try {
-          // 获取当前通知设置（需要从 settings store 获取）
-          // 这里可以通过全局状态或其他方式获取设置
-          await notificationService.syncExpiryAlerts(updatedIngredients, {
-            enabled: true, // 需要从 settings store 获取
-            dailyReminders: true,
-            nearExpiryAlerts: true,
-            expiredAlerts: false,
-            nearExpiryDays: 3,
-          });
-        } catch (error) {
-          console.warn('Failed to sync notifications after adding ingredient:', error);
-        }
+        statusMonitor.updateIngredients(updatedIngredients);
         
         return newIngredient;
       } catch (error) {
@@ -294,8 +283,10 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
         // 更新食材后自动更新统计数据
         await get().fetchStats();
         
-        // 更新食材后标记本地更改
-        get().markLocalChanges();
+        
+        // 更新状态监控
+        const updatedIngredients = get().ingredients;
+        statusMonitor.updateIngredients(updatedIngredients);
         
         return get().ingredients.find(i => i.id === id) || null;
       } catch (error) {
@@ -319,8 +310,10 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
         // 删除食材后自动更新统计数据
         await get().fetchStats();
         
-        // 删除食材后标记本地更改
-        get().markLocalChanges();
+        
+        // 更新状态监控
+        const updatedIngredients = get().ingredients;
+        statusMonitor.updateIngredients(updatedIngredients);
         
         return true;
       } catch (error) {
@@ -364,8 +357,10 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
         // 标记为已使用后自动更新统计数据
         await get().fetchStats();
         
-        // 标记为已使用后标记本地更改
-        get().markLocalChanges();
+        
+        // 更新状态监控
+        const updatedIngredients = get().ingredients;
+        statusMonitor.updateIngredients(updatedIngredients);
         
         return true;
       } catch (error) {
@@ -526,87 +521,6 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
       });
     },
     
-    // Data sync methods
-    syncToCloud: async () => {
-      const state = get();
-      if (!state.hasLocalChanges) {
-        console.log('No local changes to sync');
-        return;
-      }
-      
-      set({ isSyncing: true, syncError: null });
-      
-      try {
-        // Check if user is authenticated
-        const { useAuthStore } = await import('../auth/slice');
-        const authStore = useAuthStore.getState();
-        if (!authStore.isAuthenticated) {
-          throw new Error('用户未登录，无法同步数据');
-        }
-        
-        console.log('Syncing', state.ingredients.length, 'ingredients to cloud...');
-        
-        // TODO: Implement proper sync when API types are resolved
-        console.log('Data sync functionality is temporarily disabled due to type compatibility issues');
-        
-        set({ 
-          isSyncing: false, 
-          hasLocalChanges: false,
-          lastSyncAt: new Date().toISOString(),
-          syncError: null 
-        });
-        
-        console.log('Sync to cloud completed successfully');
-      } catch (error: any) {
-        console.error('Sync to cloud failed:', error);
-        set({ 
-          isSyncing: false, 
-          syncError: error.message || '同步到云端失败' 
-        });
-        throw error;
-      }
-    },
-    
-    syncFromCloud: async () => {
-      set({ isSyncing: true, syncError: null });
-      
-      try {
-        // Check if user is authenticated
-        const { useAuthStore } = await import('../auth/slice');
-        const authStore = useAuthStore.getState();
-        if (!authStore.isAuthenticated) {
-          throw new Error('用户未登录，无法同步数据');
-        }
-        
-        console.log('Syncing ingredients from cloud...');
-        
-        // TODO: Implement proper sync from cloud when API types are resolved
-        console.log('Data sync functionality is temporarily disabled due to type compatibility issues');
-        
-        set({ 
-          isSyncing: false, 
-          lastSyncAt: new Date().toISOString(),
-          syncError: null 
-        });
-        
-        console.log('Sync from cloud completed successfully');
-      } catch (error: any) {
-        console.error('Sync from cloud failed:', error);
-        set({ 
-          isSyncing: false, 
-          syncError: error.message || '从云端同步失败' 
-        });
-        throw error;
-      }
-    },
-    
-    markLocalChanges: () => {
-      set({ hasLocalChanges: true });
-    },
-    
-    clearSyncError: () => {
-      set({ syncError: null });
-    },
   }),
   {
     name: 'ingredients-storage',
@@ -641,7 +555,6 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
       units: state.units,
       locations: state.locations,
       isInitialized: state.isInitialized,
-      lastSyncAt: state.lastSyncAt,
       hasLocalChanges: state.hasLocalChanges,
     }),
   }
