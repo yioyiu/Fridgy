@@ -1,15 +1,29 @@
-name: EAS Build
+name: EAS Build - iOS
 
 on:
   push:
     branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'app.json'
+      - 'eas.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/build-ios.yml'
   pull_request:
     branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'app.json'
+      - 'eas.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/build-ios.yml'
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build and submit app
+  build-ios:
+    name: Build iOS App
     runs-on: ubuntu-latest
     steps:
       - name: Check for EXPO_TOKEN
@@ -33,7 +47,5 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
       - name: Install dependencies
         run: npm ci
-      - name: Build Android on EAS
-        run: eas build --platform android --profile production --non-interactive
       - name: Build iOS on EAS
         run: eas build --platform ios --profile production --non-interactive
