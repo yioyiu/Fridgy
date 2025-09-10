@@ -74,7 +74,13 @@ git push origin master
 - **Android构建**: `.github/workflows/build-android.yml`
 - **iOS构建**: `.github/workflows/build-ios.yml`
 
-### 2. 构建环境配置
+### 2. 自动化提交工作流
+当需要提交到应用商店时，以下工作流可以自动运行：
+
+- **Android提交**: `.github/workflows/submit-android.yml`
+- **iOS提交**: `.github/workflows/submit-ios.yml`
+
+### 3. 构建环境配置
 项目支持4种构建环境：
 
 #### Development (开发环境)
@@ -109,11 +115,31 @@ eas build --platform android --profile production-retry
 - 📱 与production相同
 - 🎯 应用商店用
 
-### 3. 监控构建状态
+### 4. 监控构建状态
 1. 访问 [GitHub Actions](https://github.com/yioyiu/Fridgy/actions)
 2. 查看构建进度
 3. 检查构建日志
 4. 下载构建产物
+
+### 5. 提交工作流触发方式
+
+#### 手动触发
+1. 访问 [GitHub Actions](https://github.com/yioyiu/Fridgy/actions)
+2. 选择 "EAS Submit - iOS" 或 "EAS Submit - Android"
+3. 点击 "Run workflow"
+4. 选择参数：
+   - **Build ID**: 指定构建ID（可选，默认使用最新构建）
+   - **Submit Profile**: 选择提交配置（默认production）
+   - **Skip Binary Upload**: 是否跳过二进制上传
+
+#### 版本标签触发
+```bash
+# 创建版本标签
+git tag v1.0.0
+git push origin v1.0.0
+
+# 这会自动触发提交工作流
+```
 
 ---
 
@@ -142,13 +168,21 @@ eas build --platform android --profile production-retry
 
 ### 1. 提交到应用商店
 
-#### Android (Google Play)
+#### 使用GitHub Actions自动提交（推荐）
+1. 访问 [GitHub Actions](https://github.com/yioyiu/Fridgy/actions)
+2. 选择对应的提交工作流
+3. 点击 "Run workflow"
+4. 选择参数并运行
+
+#### 手动提交命令
+
+##### Android (Google Play)
 ```bash
 # 提交到Google Play
 eas submit --platform android --profile production
 ```
 
-#### iOS (App Store)
+##### iOS (App Store)
 ```bash
 # 提交到App Store
 eas submit --platform ios --profile production
