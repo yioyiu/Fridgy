@@ -2,13 +2,13 @@
   "expo": {
     "name": "Fridgy",
     "slug": "fridgy",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/png/icon.png",
     "splash": {
       "image": "./assets/png/splash.png",
-      "resizeMode": "contain",
+      "resizeMode": "cover",
       "backgroundColor": "#4CAF50"
     },
     "assetBundlePatterns": [
@@ -17,9 +17,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fridgy.app",
+      "buildNumber": "2",
       "infoPlist": {
-        "NSCameraUsageDescription": "This app uses the camera to scan barcodes and take photos of ingredients.",
-        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to add ingredient images.",
         "NSLocationWhenInUseUsageDescription": "This app uses location to suggest nearby stores.",
         "NSUserNotificationsUsageDescription": "This app sends notifications to remind you about expiring ingredients.",
         "ITSAppUsesNonExemptEncryption": false
@@ -33,7 +32,6 @@
         "backgroundColor": "#4CAF50"
       },
       "permissions": [
-        "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "ACCESS_FINE_LOCATION",
@@ -42,14 +40,11 @@
         "RECEIVE_BOOT_COMPLETED",
         "WAKE_LOCK",
         "NOTIFICATIONS",
-        "POST_NOTIFICATIONS",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "POST_NOTIFICATIONS"
       ]
     },
     "plugins": [
       "expo-router",
-      "expo-camera",
       "expo-notifications"
     ],
     "scheme": "fridgy",
