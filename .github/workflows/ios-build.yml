@@ -17,18 +17,20 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
       - name: Install deps
         run: npm ci
-
-      - name: Install EAS CLI
-        run: npm i -g eas-cli@latest
 
       - name: Bump iOS buildNumber
         run: npm run bump:ios-build
 
       - name: EAS build (iOS production)
         run: eas build --platform ios --profile production --non-interactive
-        env:
-          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
 
 
