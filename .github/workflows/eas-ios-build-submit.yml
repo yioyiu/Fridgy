@@ -1,0 +1,39 @@
+name: EAS iOS Build + Submit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+
+jobs:
+  ios-build-submit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm i -g eas-cli@latest
+
+      - name: Bump iOS buildNumber
+        run: npm run bump:ios-build
+
+      - name: EAS build (iOS production)
+        run: eas build --platform ios --profile production --non-interactive
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+
+      - name: EAS submit latest build to TestFlight
+        run: eas submit --platform ios --profile production --non-interactive --latest
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+
+
