@@ -41,13 +41,13 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install dependencies (parallel)
         run: |
-          npm ci
+          npm ci --prefer-offline --no-audit
 
-      - name: Install EAS CLI
+      - name: Install EAS CLI (parallel)
         run: |
-          npm i -g eas-cli@latest
+          npm i -g eas-cli@latest --prefer-offline
 
       - name: Verify EAS account
         env:
@@ -55,8 +55,8 @@ jobs:
         run: |
           eas whoami || true
 
-      - name: Build Android with EAS
-        id: eas_build
+      - name: Start EAS build (non-blocking)
+        id: eas_build_start
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
@@ -64,55 +64,67 @@ jobs:
           PROFILE=${PROFILE_INPUT:-production}
           echo "Using EAS profile: $PROFILE"
 
-          # Optional channel support for EAS Update (ignored if not applicable)
-          CHANNEL_INPUT="${{ github.event.inputs.channel }}"
-          CHANNEL=${CHANNEL_INPUT:-default}
-
-          # Kick off build and wait for completion
-          BUILD_JSON=$(eas build --platform android --profile "$PROFILE" --non-interactive --wait --json)
+          # Start build without waiting
+          BUILD_JSON=$(eas build --platform android --profile "$PROFILE" --non-interactive --json)
           echo "$BUILD_JSON" > build-result.json
 
-          # Extract buildId and artifact URL
-          echo "Parsing build result..."
+          # Extract buildId
           sudo apt-get update -y >/dev/null 2>&1
           sudo apt-get install -y jq >/dev/null 2>&1
           BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.[0].id')
-          ARTIFACT_URL=$(echo "$BUILD_JSON" | jq -r '.[0].artifacts.buildUrl // .[0].artifacts?.applicationArchiveUrl')
-
+          
           if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" = "null" ]; then
             echo "::error::Failed to parse build ID from EAS output" && exit 1
           fi
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          echo "Build started with ID: $BUILD_ID"
 
-          if [ -z "$ARTIFACT_URL" ] || [ "$ARTIFACT_URL" = "null" ]; then
-            echo "::warning::Artifact URL not found in immediate output; will attempt later via eas build:view"
-          else
-            echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Resolve artifact URL if missing
-        if: steps.eas_build.outputs.artifact_url == ''
-        id: resolve_artifact
+      - name: Wait for build completion
+        id: eas_build_wait
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          sudo apt-get update -y >/dev/null 2>&1
-          sudo apt-get install -y jq >/dev/null 2>&1
-          ARTIFACT_URL=$(eas build:view --build ${{ steps.eas_build.outputs.build_id }} --json | jq -r '.artifacts.buildUrl // .artifacts?.applicationArchiveUrl')
+          BUILD_ID="${{ steps.eas_build_start.outputs.build_id }}"
+          echo "Waiting for build completion..."
+          
+          # Poll build status
+          while true; do
+            STATUS=$(eas build:view --build $BUILD_ID --json | jq -r '.status')
+            echo "Build status: $STATUS"
+            
+            if [ "$STATUS" = "finished" ]; then
+              echo "Build completed successfully"
+              break
+            elif [ "$STATUS" = "errored" ] || [ "$STATUS" = "canceled" ]; then
+              echo "::error::Build failed with status: $STATUS"
+              exit 1
+            fi
+            
+            echo "Waiting 30 seconds before next check..."
+            sleep 30
+          done
+
+      - name: Get build artifacts
+        id: get_artifacts
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          BUILD_ID="${{ steps.eas_build_start.outputs.build_id }}"
+          ARTIFACT_URL=$(eas build:view --build $BUILD_ID --json | jq -r '.artifacts.buildUrl // .artifacts?.applicationArchiveUrl')
+          
           if [ -z "$ARTIFACT_URL" ] || [ "$ARTIFACT_URL" = "null" ]; then
-            echo "::error::Could not resolve artifact URL" && exit 1
+            echo "::error::Could not get artifact URL"
+            exit 1
           fi
           echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_OUTPUT
 
       - name: Download artifact
         id: download_artifact
         run: |
-          URL="${{ steps.eas_build.outputs.artifact_url }}"
-          if [ -z "$URL" ]; then
-            URL="${{ steps.resolve_artifact.outputs.artifact_url }}"
-          fi
+          URL="${{ steps.get_artifacts.outputs.artifact_url }}"
           echo "Artifact URL: $URL"
           mkdir -p dist
+          
           # Decide filename based on extension
           FILENAME="app-android"
           EXT="aab"
@@ -133,5 +145,5 @@ jobs:
 
       - name: Summary
         run: |
-          echo "Build ID: ${{ steps.eas_build.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "Build ID: ${{ steps.eas_build_start.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
           echo "Artifact: ${{ steps.download_artifact.outputs.artifact_path }}" >> $GITHUB_STEP_SUMMARY
