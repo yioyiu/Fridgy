@@ -1,36 +1,163 @@
-name: ios Build
+name: iOS Build
 
 on:
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (development/preview/production)'
+        required: false
+        default: 'production'
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+      simulator:
+        description: 'Build for simulator (iOS only)'
+        required: false
+        default: false
+        type: boolean
   push:
-    branches: [ master ]
+    branches: [master, main]
+    tags: ['v*']
+
+permissions:
+  contents: read
 
 jobs:
-  ios-build:
-    runs-on: ubuntu-latest
+  build:
+    name: Build iOS App
+    runs-on: macos-latest
+    timeout-minutes: 60
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Setup Expo and EAS
-        uses: expo/expo-github-action@v8
+      - name: Install dependencies
+        run: |
+          npm ci --silent
+
+      - name: Setup Expo CLI
+        run: |
+          npm install -g @expo/cli@latest
+
+      - name: Setup EAS CLI
+        run: |
+          npm install -g eas-cli@latest
+
+      - name: Configure EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN secret is required"
+            exit 1
+          fi
+          echo "EAS configured successfully"
+
+      - name: Bump iOS build number
+        run: |
+          npm run bump:ios-build
+
+      - name: Start EAS Build
+        id: build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'production' }}"
+          SIMULATOR="${{ github.event.inputs.simulator || 'false' }}"
+          
+          echo "Starting EAS build for: $BUILD_TYPE"
+          if [ "$SIMULATOR" = "true" ]; then
+            echo "Building for iOS Simulator"
+          fi
+          
+          # Start the build
+          if [ "$SIMULATOR" = "true" ]; then
+            eas build --platform ios --profile $BUILD_TYPE --simulator --non-interactive --json > build_output.json
+          else
+            eas build --platform ios --profile $BUILD_TYPE --non-interactive --json > build_output.json
+          fi
+          
+          # Extract build ID
+          BUILD_ID=$(cat build_output.json | jq -r '.[0].id')
+          echo "Build ID: $BUILD_ID"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+
+      - name: Wait for build completion
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          BUILD_ID="${{ steps.build.outputs.build_id }}"
+          echo "Waiting for build $BUILD_ID to complete..."
+          
+          # Wait for build to finish
+          while true; do
+            STATUS=$(eas build:view $BUILD_ID --json | jq -r '.status')
+            echo "Current status: $STATUS"
+            
+            case $STATUS in
+              "finished")
+                echo "Build completed successfully!"
+                break
+                ;;
+              "errored"|"canceled")
+                echo "Build failed with status: $STATUS"
+                exit 1
+                ;;
+              *)
+                echo "Build in progress... waiting 30 seconds"
+                sleep 30
+                ;;
+            esac
+          done
+
+      - name: Download build artifact
+        id: download
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          BUILD_ID="${{ steps.build.outputs.build_id }}"
+          
+          # Get artifact URL
+          ARTIFACT_URL=$(eas build:view $BUILD_ID --json | jq -r '.artifacts.buildUrl // .artifacts.applicationArchiveUrl')
+          
+          if [ -z "$ARTIFACT_URL" ] || [ "$ARTIFACT_URL" = "null" ]; then
+            echo "::error::Could not get artifact URL"
+            exit 1
+          fi
+          
+          echo "Downloading artifact from: $ARTIFACT_URL"
+          mkdir -p artifacts
+          
+          # Determine file extension
+          if [[ $ARTIFACT_URL == *.ipa ]]; then
+            EXT="ipa"
+          else
+            EXT="app"
+          fi
+          
+          # Download the artifact
+          curl -L -o "artifacts/ios-build.$EXT" "$ARTIFACT_URL"
+          echo "artifact_path=artifacts/ios-build.$EXT" >> $GITHUB_OUTPUT
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
-          expo-version: latest
-          eas-version: latest
-          token: ${{ secrets.EAS_TOKEN }}
+          name: ios-build-${{ github.run_number }}
+          path: ${{ steps.download.outputs.artifact_path }}
+          retention-days: 30
 
-      - name: Install deps
-        run: npm ci
-
-      - name: Bump iOS buildNumber
-        run: npm run bump:ios-build
-
-      - name: EAS build (iOS production)
-        run: eas build --platform ios --profile production --non-interactive
-
-
+      - name: Build summary
+        run: |
+          echo "## 🍎 iOS Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build ID**: ${{ steps.build.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact**: ${{ steps.download.outputs.artifact_path }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
