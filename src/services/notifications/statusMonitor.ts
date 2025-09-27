@@ -3,16 +3,23 @@ import { NotificationScheduler } from './scheduler';
 import { useSettingsStore } from '@/store/settings/slice';
 
 // Helper function to calculate ingredient status
-const calculateStatus = (expirationDate: string): 'fresh' | 'near_expiry' | 'expired' | 'used' => {
+const calculateStatus = (expirationDate: string, nearExpiryDays: number = 3): 'fresh' | 'near_expiry' | 'expired' | 'used' => {
   if (!expirationDate) return 'fresh';
-  
+
   const today = new Date();
   const expDate = new Date(expirationDate);
+
+  // 验证日期是否有效
+  if (isNaN(expDate.getTime())) {
+    console.warn('Invalid expiration date:', expirationDate);
+    return 'fresh';
+  }
+
   const diffTime = expDate.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays < 0) return 'expired';
-  if (diffDays <= 3) return 'near_expiry';
+  if (diffDays <= nearExpiryDays) return 'near_expiry';
   return 'fresh';
 };
 
@@ -20,17 +27,18 @@ export interface StatusChangeEvent {
   ingredient: Ingredient;
   oldStatus: 'fresh' | 'near_expiry' | 'expired' | 'used';
   newStatus: 'fresh' | 'near_expiry' | 'expired' | 'used';
-  changeType: 'fresh_to_near_expiry' | 'near_expiry_to_expired' | 'expired_to_fresh' | 'other';
+  changeType: 'fresh_to_near_expiry' | 'near_expiry_to_expired' | 'other';
 }
 
 export class StatusMonitor {
   private static instance: StatusMonitor;
   private lastCheckedIngredients: Map<string, 'fresh' | 'near_expiry' | 'expired' | 'used'> = new Map();
   private isMonitoring = false;
-  private checkInterval: NodeJS.Timeout | null = null;
+  private checkInterval: ReturnType<typeof setInterval> | null = null;
   private cachedSettings: any = null;
   private settingsCacheTime = 0;
   private readonly CACHE_DURATION = 5000; // 5秒缓存
+  private unsubscribeSettings: (() => void) | null = null;
 
   static getInstance(): StatusMonitor {
     if (!StatusMonitor.instance) {
@@ -49,15 +57,21 @@ export class StatusMonitor {
 
     // 初始化当前状态
     this.lastCheckedIngredients.clear();
+    const settings = this.getCachedSettings();
+    const nearExpiryDays = settings?.defaultNearExpiryDays || 3;
+
     ingredients.forEach(ingredient => {
       if (ingredient.status !== 'used') {
-        const calculatedStatus = calculateStatus(ingredient.expiration_date);
+        const calculatedStatus = calculateStatus(ingredient.expiration_date, nearExpiryDays);
         this.lastCheckedIngredients.set(ingredient.id, calculatedStatus);
       }
     });
 
     this.isMonitoring = true;
-    
+
+    // 订阅设置变化以清理缓存
+    this.unsubscribeSettings = this.subscribeToSettingsChanges();
+
     // 每5分钟检查一次状态变化
     this.checkInterval = setInterval(() => {
       this.checkStatusChanges(ingredients);
@@ -74,6 +88,10 @@ export class StatusMonitor {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
     }
+    if (this.unsubscribeSettings) {
+      this.unsubscribeSettings();
+      this.unsubscribeSettings = null;
+    }
     this.isMonitoring = false;
     console.log('Status monitoring stopped');
   }
@@ -84,16 +102,18 @@ export class StatusMonitor {
   private async checkStatusChanges(ingredients: Ingredient[]): Promise<void> {
     try {
       const statusChanges: StatusChangeEvent[] = [];
+      const settings = this.getCachedSettings();
+      const nearExpiryDays = settings?.defaultNearExpiryDays || 3;
 
       for (const ingredient of ingredients) {
         if (ingredient.status === 'used') continue;
 
         const oldStatus = this.lastCheckedIngredients.get(ingredient.id);
-        const newStatus = calculateStatus(ingredient.expiration_date);
+        const newStatus = calculateStatus(ingredient.expiration_date, nearExpiryDays);
 
         if (oldStatus && oldStatus !== newStatus) {
           const changeType = this.getChangeType(oldStatus, newStatus);
-          
+
           statusChanges.push({
             ingredient,
             oldStatus,
@@ -130,8 +150,6 @@ export class StatusMonitor {
       return 'fresh_to_near_expiry';
     } else if (oldStatus === 'near_expiry' && newStatus === 'expired') {
       return 'near_expiry_to_expired';
-    } else if (oldStatus === 'expired' && newStatus === 'fresh') {
-      return 'expired_to_fresh';
     }
     return 'other';
   }
@@ -142,8 +160,19 @@ export class StatusMonitor {
   private getCachedSettings() {
     const now = Date.now();
     if (!this.cachedSettings || (now - this.settingsCacheTime) > this.CACHE_DURATION) {
-      this.cachedSettings = useSettingsStore.getState();
-      this.settingsCacheTime = now;
+      try {
+        this.cachedSettings = useSettingsStore.getState();
+        this.settingsCacheTime = now;
+      } catch (error) {
+        console.error('Error getting settings state:', error);
+        // 返回默认设置
+        return {
+          notificationsEnabled: true,
+          nearExpiryAlerts: true,
+          expiredAlerts: false,
+          defaultNearExpiryDays: 3
+        };
+      }
     }
     return this.cachedSettings;
   }
@@ -157,29 +186,54 @@ export class StatusMonitor {
   }
 
   /**
+   * 订阅设置变化，自动清理缓存，避免其他模块直接依赖本类
+   */
+  public subscribeToSettingsChanges(): (() => void) | null {
+    try {
+      const unsubscribe = useSettingsStore.subscribe(() => {
+        this.clearSettingsCache();
+      });
+      return unsubscribe;
+    } catch (e) {
+      // 订阅失败时忽略（例如初始化阶段）
+      console.warn('Failed to subscribe to settings changes:', e);
+      return null;
+    }
+  }
+
+  /**
    * 处理状态变化
    */
   private async handleStatusChanges(changes: StatusChangeEvent[]): Promise<void> {
     try {
       const settings = this.getCachedSettings();
-      
-      if (!settings.notificationsEnabled) {
+
+      if (!settings?.notificationsEnabled) {
+        console.log('Notifications disabled, skipping status change notifications');
         return;
       }
+
+      // 批量处理通知，避免阻塞
+      const notificationPromises: Promise<void>[] = [];
 
       for (const change of changes) {
         switch (change.changeType) {
           case 'fresh_to_near_expiry':
             if (settings.nearExpiryAlerts) {
-              await this.sendNearExpiryNotification(change.ingredient);
+              notificationPromises.push(this.sendNearExpiryNotification(change.ingredient));
             }
             break;
           case 'near_expiry_to_expired':
             if (settings.expiredAlerts) {
-              await this.sendExpiredNotification(change.ingredient);
+              notificationPromises.push(this.sendExpiredNotification(change.ingredient));
             }
             break;
         }
+      }
+
+      // 等待所有通知发送完成
+      if (notificationPromises.length > 0) {
+        await Promise.allSettled(notificationPromises);
       }
 
       console.log(`Processed ${changes.length} status changes`);
@@ -243,9 +297,12 @@ export class StatusMonitor {
   updateIngredients(ingredients: Ingredient[]): void {
     if (this.isMonitoring) {
       // 检查新添加的食材
+      const settings = this.getCachedSettings();
+      const nearExpiryDays = settings?.defaultNearExpiryDays || 3;
+
       ingredients.forEach(ingredient => {
         if (!this.lastCheckedIngredients.has(ingredient.id) && ingredient.status !== 'used') {
-          const calculatedStatus = calculateStatus(ingredient.expiration_date);
+          const calculatedStatus = calculateStatus(ingredient.expiration_date, nearExpiryDays);
           this.lastCheckedIngredients.set(ingredient.id, calculatedStatus);
         }
       });

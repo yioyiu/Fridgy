@@ -6,20 +6,27 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Modal,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIngredientsStore } from '@/store/ingredients/slice';
 import { COLORS } from '@/utils/constants';
 import { useI18n } from '@/utils/i18n';
 import { AIAnalysisModal } from '@/components/ai/AIAnalysisModal';
+import { CookingAdviceModal } from '@/components/ai/CookingAdviceModal';
 
 export default function OverviewScreen() {
   const { ingredients, fetchIngredients, isLoading } = useIngredientsStore();
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const [aiModalVisible, setAiModalVisible] = useState(false);
+  const [cookingModalVisible, setCookingModalVisible] = useState(false);
+  const [selectionModalVisible, setSelectionModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<string>('');
+  const [scaleValue] = useState(new Animated.Value(0));
 
   useEffect(() => {
     // Only fetch ingredients if not already initialized
@@ -32,11 +39,46 @@ export default function OverviewScreen() {
 
   const handleItemPress = (itemName: string) => {
     setSelectedItem(itemName);
+    setSelectionModalVisible(true);
+
+    // 弹窗动画
+    Animated.spring(scaleValue, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8,
+    }).start();
+  };
+
+  const handleCloseSelectionModal = () => {
+    Animated.spring(scaleValue, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8,
+    }).start(() => {
+      setSelectionModalVisible(false);
+      setSelectedItem('');
+    });
+  };
+
+  const handleStorageAnalysis = () => {
+    setSelectionModalVisible(false);
     setAiModalVisible(true);
+  };
+
+  const handleCookingAdvice = () => {
+    setSelectionModalVisible(false);
+    setCookingModalVisible(true);
   };
 
   const handleCloseAiModal = () => {
     setAiModalVisible(false);
+    setSelectedItem('');
+  };
+
+  const handleCloseCookingModal = () => {
+    setCookingModalVisible(false);
     setSelectedItem('');
   };
 
@@ -74,7 +116,7 @@ export default function OverviewScreen() {
     >
       <View style={{ height: insets.top }} />
 
-      <ScrollView 
+      <ScrollView
         style={styles.content}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
         showsVerticalScrollIndicator={false}
@@ -97,23 +139,20 @@ export default function OverviewScreen() {
             <View style={styles.locationHeader}>
               <Text style={styles.storageLocationTitle}>{location}</Text>
               <Text style={styles.itemCount}>
-                {locationIngredients.length} {locationIngredients.length !== 1 ? 'items' : 'item'}
+                {locationIngredients.length} {locationIngredients.length !== 1 ? t('overview.items') : t('overview.item')}
               </Text>
             </View>
-            
+
             <View style={styles.itemsList}>
               {locationIngredients.map((ingredient) => (
-                <TouchableOpacity 
-                  key={ingredient.id} 
+                <TouchableOpacity
+                  key={ingredient.id}
                   style={styles.itemRow}
                   onPress={() => handleItemPress(ingredient.name)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.itemInfo}>
                     <Text style={styles.itemName}>{ingredient.name}</Text>
-                    <Text style={styles.itemDetails}>
-                      {ingredient.quantity} {ingredient.unit} • {ingredient.category}
-                    </Text>
                   </View>
                   <View style={styles.itemStatus}>
                     <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(ingredient.status) }]} />
@@ -140,11 +179,99 @@ export default function OverviewScreen() {
         )}
       </ScrollView>
 
+      {/* Selection Modal */}
+      <Modal
+        visible={selectionModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseSelectionModal}
+      >
+        <View style={styles.selectionOverlay}>
+          <TouchableOpacity
+            style={styles.selectionBackdrop}
+            activeOpacity={1}
+            onPress={handleCloseSelectionModal}
+          />
+          <Animated.View
+            style={[
+              styles.selectionModalContainer,
+              {
+                transform: [{ scale: scaleValue }]
+              }
+            ]}
+          >
+            <View style={styles.selectionHeader}>
+              <Text style={styles.selectionTitle}>{t('ai.selectAnalysisType')}</Text>
+              <Text style={styles.selectionSubtitle}>"{selectedItem}"</Text>
+            </View>
+
+            <View style={styles.selectionOptions}>
+              <TouchableOpacity
+                style={styles.selectionOption}
+                onPress={handleStorageAnalysis}
+                activeOpacity={0.7}
+              >
+                <View style={styles.optionIconContainer}>
+                  <MaterialCommunityIcons
+                    name="fridge"
+                    size={32}
+                    color={COLORS.primary}
+                  />
+                </View>
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>{t('ai.storageOption')}</Text>
+                  <Text style={styles.optionDescription}>
+                    {t('ai.storageDescription')}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={24}
+                  color={COLORS.textSecondary}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.selectionOption}
+                onPress={handleCookingAdvice}
+                activeOpacity={0.7}
+              >
+                <View style={styles.optionIconContainer}>
+                  <MaterialCommunityIcons
+                    name="chef-hat"
+                    size={32}
+                    color={COLORS.success}
+                  />
+                </View>
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>{t('ai.cookingOption')}</Text>
+                  <Text style={styles.optionDescription}>
+                    {t('ai.cookingDescription')}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={24}
+                  color={COLORS.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
       {/* AI Analysis Modal */}
       <AIAnalysisModal
         visible={aiModalVisible}
         itemName={selectedItem}
         onClose={handleCloseAiModal}
+      />
+
+      {/* Cooking Advice Modal */}
+      <CookingAdviceModal
+        visible={cookingModalVisible}
+        ingredients={[selectedItem]}
+        onClose={handleCloseCookingModal}
       />
     </LinearGradient>
   );
@@ -268,5 +395,85 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  // Selection Modal Styles
+  selectionOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  selectionBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  selectionModalContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    margin: 20,
+    maxWidth: 400,
+    width: '90%',
+    elevation: 10,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  selectionHeader: {
+    padding: 24,
+    paddingBottom: 16,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  selectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  selectionSubtitle: {
+    fontSize: 16,
+    color: COLORS.primary,
+    fontWeight: '500',
+  },
+  selectionOptions: {
+    padding: 16,
+  },
+  selectionOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  optionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  optionDescription: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
   },
 });

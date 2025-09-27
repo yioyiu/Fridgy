@@ -10,7 +10,6 @@ import {
   Modal,
   Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { List, Divider, Button, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -24,6 +23,12 @@ import * as DocumentPicker from 'expo-document-picker';
 import { PrivacyPolicyModal } from '@/components/PrivacyPolicyModal';
 import { TermsOfServiceModal } from '@/components/TermsOfServiceModal';
 import { SupportModal } from '@/components/SupportModal';
+import { OnboardingScreen } from '@/components/onboarding';
+import { VersionUpdateModal } from '@/components/version';
+import { versionChecker } from '@/services/version/versionChecker';
+import { appRatingService } from '@/services/rating';
+import { dataClearService } from '@/services/data';
+import { SwipeToDelete, LongPressDelete, SimpleGradient, ClearDataModal } from '@/components/ui';
 
 // Language options
 const LANGUAGES = [
@@ -34,15 +39,16 @@ const LANGUAGES = [
   { code: 'de', name: 'German', nativeName: 'Deutsch' },
   { code: 'ja', name: 'Japanese', nativeName: '日本語' },
   { code: 'ko', name: 'Korean', nativeName: '한국어' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano' },
 ];
 
 // 使用React.memo优化的SwitchItem组件，添加更严格的比较
-const SwitchItem = React.memo(({ 
-  title, 
-  subtitle, 
-  icon, 
-  value, 
-  onValueChange 
+const SwitchItem = React.memo(({
+  title,
+  subtitle,
+  icon,
+  value,
+  onValueChange
 }: {
   title: string;
   subtitle?: string;
@@ -53,9 +59,9 @@ const SwitchItem = React.memo(({
   return (
     <View style={styles.switchItemContainer}>
       <View style={styles.switchItemLeft}>
-        <MaterialCommunityIcons 
-          name={icon as any} 
-          size={24} 
+        <MaterialCommunityIcons
+          name={icon as any}
+          size={24}
           color={COLORS.textSecondary}
           style={styles.switchItemIcon}
         />
@@ -90,7 +96,7 @@ const EnableNotificationsSwitch = React.memo(() => {
   const { t } = useI18n();
   const value = useSettingsStore(state => state.notificationsEnabled);
   const setter = useSettingsStore(state => state.setNotificationsEnabled);
-  
+
   return (
     <SwitchItem
       title={t('settings.enableNotifications')}
@@ -106,7 +112,7 @@ const DailyRemindersSwitch = React.memo(() => {
   const { t } = useI18n();
   const value = useSettingsStore(state => state.dailyReminders);
   const setter = useSettingsStore(state => state.setDailyReminders);
-  
+
   return (
     <SwitchItem
       title={t('settings.dailyReminders')}
@@ -122,7 +128,7 @@ const NearExpiryAlertsSwitch = React.memo(() => {
   const { t } = useI18n();
   const value = useSettingsStore(state => state.nearExpiryAlerts);
   const setter = useSettingsStore(state => state.setNearExpiryAlerts);
-  
+
   return (
     <SwitchItem
       title={t('settings.nearExpiryAlerts')}
@@ -138,7 +144,7 @@ const ExpiredAlertsSwitch = React.memo(() => {
   const { t } = useI18n();
   const value = useSettingsStore(state => state.expiredAlerts);
   const setter = useSettingsStore(state => state.setExpiredAlerts);
-  
+
   return (
     <SwitchItem
       title={t('settings.expiredAlerts')}
@@ -154,7 +160,7 @@ const AutoSuggestExpirySwitch = React.memo(() => {
   const { t } = useI18n();
   const value = useSettingsStore(state => state.autoSuggestExpiry);
   const setter = useSettingsStore(state => state.setAutoSuggestExpiry);
-  
+
   return (
     <SwitchItem
       title={t('settings.autoSuggestExpiry')}
@@ -170,36 +176,32 @@ export default function SettingsScreen() {
   const { currentLanguage, setLanguage, t } = useI18n();
   const insets = useSafeAreaInsets();
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
-  const [categoriesModalVisible, setCategoriesModalVisible] = useState(false);
-  const [unitsModalVisible, setUnitsModalVisible] = useState(false);
   const [locationsModalVisible, setLocationsModalVisible] = useState(false);
   const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
   const [termsModalVisible, setTermsModalVisible] = useState(false);
   const [supportModalVisible, setSupportModalVisible] = useState(false);
+  const [onboardingModalVisible, setOnboardingModalVisible] = useState(false);
+  const [versionUpdateModalVisible, setVersionUpdateModalVisible] = useState(false);
+  const [versionInfo, setVersionInfo] = useState<any>(null);
+  const [isCheckingVersion, setIsCheckingVersion] = useState(false);
+  const [isClearingData, setIsClearingData] = useState(false);
+  const [useSwipeDelete, setUseSwipeDelete] = useState(false); // 控制使用滑动删除还是长按删除，暂时使用长按删除
+  const [clearDataModalVisible, setClearDataModalVisible] = useState(false);
 
   const { ingredients, addIngredient } = useIngredientsStore();
 
   // 使用选择器来避免不必要的重新渲染
   const defaultNearExpiryDays = useSettingsStore(state => state.defaultNearExpiryDays);
   const dailyReminderTime = useSettingsStore(state => state.dailyReminderTime);
-  
-  const { 
-    categories, 
-    units, 
-    locations, 
-    addCategory, 
-    removeCategory, 
-    addUnit, 
-    removeUnit, 
-    addLocation, 
+
+  const {
+    locations,
+    addLocation,
     removeLocation,
     setDefaultNearExpiryDays,
     setDailyReminderTime
   } = useSettingsStore();
 
-  const [newCategory, setNewCategory] = useState('');
-  const [newUnitName, setNewUnitName] = useState('');
-  const [newUnitAbbr, setNewUnitAbbr] = useState('');
   const [newLocation, setNewLocation] = useState('');
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [selectedTime, setSelectedTime] = useState(new Date());
@@ -226,7 +228,7 @@ export default function SettingsScreen() {
     if (Platform.OS === 'android') {
       setTimePickerVisible(false);
     }
-    
+
     if (selectedDate) {
       setSelectedTime(selectedDate);
       if (Platform.OS === 'ios') {
@@ -249,19 +251,91 @@ export default function SettingsScreen() {
     });
   }, [selectedTime, handleSetDailyReminderTime]);
 
-  // Callback functions to prevent re-renders
-  const handleAddCategory = React.useCallback(() => {
-    if (!newCategory.trim()) return;
-    addCategory(newCategory);
-    setNewCategory('');
-  }, [newCategory, addCategory]);
+  // 版本检查处理函数
+  const handleVersionCheck = React.useCallback(async () => {
+    setIsCheckingVersion(true);
+    try {
+      const result = await versionChecker.checkForUpdates();
+      if (result.hasUpdate && result.versionInfo) {
+        setVersionInfo(result.versionInfo);
+        setVersionUpdateModalVisible(true);
+      } else {
+        Alert.alert(
+          t('settings.versionCheck'),
+          t('settings.versionUpToDate'),
+          [{ text: t('common.ok') }]
+        );
+      }
+    } catch (error) {
+      console.error('Version check error:', error);
+      Alert.alert(
+        t('common.error'),
+        t('settings.versionCheckError'),
+        [{ text: t('common.ok') }]
+      );
+    } finally {
+      setIsCheckingVersion(false);
+    }
+  }, [t]);
 
-  const handleAddUnit = React.useCallback(() => {
-    if (!newUnitName.trim() || !newUnitAbbr.trim()) return;
-    addUnit(newUnitName, newUnitAbbr);
-    setNewUnitName('');
-    setNewUnitAbbr('');
-  }, [newUnitName, newUnitAbbr, addUnit]);
+  const handleVersionUpdate = React.useCallback(() => {
+    setVersionUpdateModalVisible(false);
+  }, []);
+
+  const handleVersionDismiss = React.useCallback(() => {
+    setVersionUpdateModalVisible(false);
+  }, []);
+
+  // 评分处理函数
+  const handleRateApp = React.useCallback(async () => {
+    try {
+      const result = await appRatingService.rateApp();
+      if (result.success) {
+        // 评分成功，显示感谢消息
+        setTimeout(() => {
+          appRatingService.showRatingSuccessMessage(t);
+        }, 1000);
+      } else {
+        // 评分失败，显示错误消息
+        appRatingService.showRatingErrorMessage(result.error, t);
+      }
+    } catch (error) {
+      console.error('Rate app error:', error);
+      const errorMessage = t ? t('rating.errorOccurred') : '评分时发生错误，请稍后重试。';
+      appRatingService.showRatingErrorMessage(errorMessage, t);
+    }
+  }, [t]);
+
+  // 数据清除处理函数
+  const handleClearAllData = React.useCallback(() => {
+    setClearDataModalVisible(true);
+  }, []);
+
+  const handleClearDataConfirm = React.useCallback(async () => {
+    setClearDataModalVisible(false);
+    setIsClearingData(true);
+    try {
+      const result = await dataClearService.clearAllData();
+      dataClearService.showClearResultDialog(result, t);
+    } catch (error) {
+      console.error('Clear data error:', error);
+      const errorMessage = t ? t('settings.dataClear.errorOccurred') : '清除数据时发生错误，请稍后重试。';
+      Alert.alert(
+        t ? t('common.error') : '错误',
+        errorMessage,
+        [{ text: t ? t('common.ok') : '确定' }]
+      );
+    } finally {
+      setIsClearingData(false);
+    }
+  }, [t]);
+
+  const handleClearDataCancel = React.useCallback(() => {
+    setClearDataModalVisible(false);
+  }, []);
+
+  // Callback functions to prevent re-renders
+
 
   const handleAddLocation = React.useCallback(() => {
     if (!newLocation.trim()) return;
@@ -363,7 +437,7 @@ export default function SettingsScreen() {
         Alert.alert(t('common.error'), '无法读取选择的文件。', [{ text: t('common.ok') }]);
         return;
       }
-      
+
       // 读取文件内容
       const fileContent = await FileSystem.readAsStringAsync(file.uri, {
         encoding: FileSystem.EncodingType.UTF8,
@@ -383,7 +457,7 @@ export default function SettingsScreen() {
       // 解析标题行
       const headers = lines[0]?.split(',').map(h => h.replace(/"/g, '').trim()) || [];
       const expectedHeaders = ['名称', '分类', '数量', '单位', '存放日期', '过期日期', '位置', '备注'];
-      
+
       // 验证标题
       const isValidHeaders = expectedHeaders.every(header => headers.includes(header));
       if (!isValidHeaders) {
@@ -407,9 +481,9 @@ export default function SettingsScreen() {
             errors.push(`第${i + 2}行：空行`);
             continue;
           }
-          
+
           const values = parseCSVRow(row);
-          
+
           if (values.length !== expectedHeaders.length) {
             errors.push(`第${i + 2}行：列数不匹配`);
             continue;
@@ -480,10 +554,10 @@ export default function SettingsScreen() {
     const result = [];
     let current = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < row.length; i++) {
       const char = row[i];
-      
+
       if (char === '"') {
         inQuotes = !inQuotes;
       } else if (char === ',' && !inQuotes) {
@@ -493,7 +567,7 @@ export default function SettingsScreen() {
         current += char;
       }
     }
-    
+
     result.push(current.trim());
     return result;
   };
@@ -568,14 +642,14 @@ export default function SettingsScreen() {
     }
   };
 
-  
 
-  const SettingItem = React.memo(({ 
-    title, 
-    subtitle, 
-    icon, 
-    onPress, 
-    right 
+
+  const SettingItem = React.memo(({
+    title,
+    subtitle,
+    icon,
+    onPress,
+    right
   }: {
     title: string;
     subtitle?: string;
@@ -589,11 +663,11 @@ export default function SettingsScreen() {
       titleStyle: { color: COLORS.text, fontWeight: '600' },
       descriptionStyle: { color: COLORS.textSecondary },
       left: (props: any) => (
-        <MaterialCommunityIcons 
-          {...props} 
-          name={icon as any} 
-          size={24} 
-          color={COLORS.textSecondary} 
+        <MaterialCommunityIcons
+          {...props}
+          name={icon as any}
+          size={24}
+          color={COLORS.textSecondary}
         />
       ),
       style: styles.listItem,
@@ -614,11 +688,11 @@ export default function SettingsScreen() {
 
   const LanguageSelector = React.memo(() => {
     const selectedLang = LANGUAGES.find(lang => lang.code === currentLanguage);
-    
+
     const handlePress = React.useCallback(() => {
       setLanguageModalVisible(true);
     }, []);
-    
+
     return (
       <List.Item
         title={t('settings.language')}
@@ -626,19 +700,19 @@ export default function SettingsScreen() {
         titleStyle={{ color: COLORS.text, fontWeight: '600' }}
         descriptionStyle={{ color: COLORS.textSecondary }}
         left={(props) => (
-          <MaterialCommunityIcons 
-            {...props} 
-            name="translate" 
-            size={24} 
-            color={COLORS.textSecondary} 
+          <MaterialCommunityIcons
+            {...props}
+            name="translate"
+            size={24}
+            color={COLORS.textSecondary}
           />
         )}
         right={(props) => (
-          <MaterialCommunityIcons 
-            {...props} 
-            name="chevron-right" 
-            size={24} 
-            color={COLORS.textSecondary} 
+          <MaterialCommunityIcons
+            {...props}
+            name="chevron-right"
+            size={24}
+            color={COLORS.textSecondary}
           />
         )}
         onPress={handlePress}
@@ -656,14 +730,9 @@ export default function SettingsScreen() {
   }), [dailyReminderTime, handleTimePickerOpen]);
 
   return (
-    <LinearGradient
-      colors={[COLORS.gradientStart, COLORS.gradientMiddle1, COLORS.gradientMiddle2, COLORS.gradientMiddle3, COLORS.gradientEnd]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
+    <SimpleGradient style={styles.container}>
       <View style={{ height: insets.top }} />
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 120 }]}
       >
@@ -701,20 +770,6 @@ export default function SettingsScreen() {
               subtitle={`${defaultNearExpiryDays} days`}
               icon="calendar-clock"
               onPress={() => console.log('Change default near expiry days')}
-            />
-            <Divider />
-            <SettingItem
-              title={t('settings.categories')}
-              subtitle={t('settings.categoriesSubtitle')}
-              icon="tag"
-              onPress={() => setCategoriesModalVisible(true)}
-            />
-            <Divider />
-            <SettingItem
-              title={t('settings.units')}
-              subtitle={t('settings.unitsSubtitle')}
-              icon="ruler"
-              onPress={() => setUnitsModalVisible(true)}
             />
             <Divider />
             <SettingItem
@@ -757,7 +812,25 @@ export default function SettingsScreen() {
               title={t('settings.clearAllData')}
               subtitle={t('settings.clearAllDataSubtitle')}
               icon="delete"
-              onPress={() => Alert.alert(t('settings.clearAllData'), 'This will remove all your ingredients.')}
+              onPress={handleClearAllData}
+              right={(props) => (
+                <View style={styles.clearDataRightContainer}>
+                  {isClearingData && (
+                    <MaterialCommunityIcons
+                      name="loading"
+                      size={16}
+                      color={COLORS.primary}
+                      style={styles.clearDataLoadingIcon}
+                    />
+                  )}
+                  <MaterialCommunityIcons
+                    {...props}
+                    name="chevron-right"
+                    size={24}
+                    color={COLORS.textSecondary}
+                  />
+                </View>
+              )}
             />
           </View>
         </View>
@@ -781,7 +854,7 @@ export default function SettingsScreen() {
               onPress={() => setTermsModalVisible(true)}
             />
             <Divider />
-            
+
           </View>
         </View>
 
@@ -791,8 +864,27 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <SettingItem
               title={t('settings.version')}
-              subtitle="1.0.0"
+              subtitle={`${versionChecker.getCurrentVersion()} (${versionChecker.getCurrentBuildNumber()})`}
               icon="information"
+              onPress={handleVersionCheck}
+              right={(props) => (
+                <View style={styles.versionRightContainer}>
+                  {isCheckingVersion && (
+                    <MaterialCommunityIcons
+                      name="loading"
+                      size={16}
+                      color={COLORS.primary}
+                      style={styles.versionLoadingIcon}
+                    />
+                  )}
+                  <MaterialCommunityIcons
+                    {...props}
+                    name="chevron-right"
+                    size={24}
+                    color={COLORS.textSecondary}
+                  />
+                </View>
+              )}
             />
             <Divider />
             <SettingItem
@@ -803,10 +895,17 @@ export default function SettingsScreen() {
             />
             <Divider />
             <SettingItem
+              title={t('settings.viewOnboarding')}
+              subtitle={t('settings.viewOnboardingSubtitle')}
+              icon="play-circle"
+              onPress={() => setOnboardingModalVisible(true)}
+            />
+            <Divider />
+            <SettingItem
               title={t('settings.rateApp')}
               subtitle={t('settings.rateAppSubtitle')}
               icon="star"
-              onPress={() => console.log('Rate app')}
+              onPress={handleRateApp}
             />
           </View>
         </View>
@@ -824,135 +923,62 @@ export default function SettingsScreen() {
           <View style={styles.languageModalContent}>
             <View style={styles.languageModalHeader}>
               <Text style={styles.languageModalTitle}>{t('settings.language')}</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setLanguageModalVisible(false)}
                 style={styles.closeButton}
               >
                 <MaterialCommunityIcons name="close" size={24} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>
-            
-                          <ScrollView style={styles.languageList}>
-                {LANGUAGES.map((language) => (
-                  <TouchableOpacity
-                    key={language.code}
-                    style={[
-                      styles.languageItem,
-                      currentLanguage === language.code && styles.languageItemSelected
-                    ]}
-                    onPress={() => {
-                      setLanguage(language.code as LanguageCode);
-                      setLanguageModalVisible(false);
-                      // Language change implemented
-                      Alert.alert(
-                        t('common.success'),
-                        `${t('settings.language')} ${t('common.success')}: ${language.nativeName}`,
-                        [{ text: 'OK' }]
-                      );
-                    }}
-                  >
-                    <View style={styles.languageItemContent}>
-                      <Text style={[
-                        styles.languageItemText,
-                        currentLanguage === language.code && styles.languageItemTextSelected
-                      ]}>
-                        {language.nativeName}
-                      </Text>
-                      <Text style={[
-                        styles.languageItemSubtext,
-                        currentLanguage === language.code && styles.languageItemSubtextSelected
-                      ]}>
-                        {language.name}
-                      </Text>
-                    </View>
-                    {currentLanguage === language.code && (
-                      <MaterialCommunityIcons 
-                        name="check" 
-                        size={24} 
-                        color={COLORS.primary} 
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-          </View>
-        </View>
-      )}
 
-      {/* Categories Manager */}
-      {categoriesModalVisible && (
-        <View style={styles.languageModal}>
-          <View style={styles.languageModalContent}>
-            <View style={styles.languageModalHeader}>
-              <Text style={styles.languageModalTitle}>{t('settings.categories')}</Text>
-              <TouchableOpacity onPress={() => setCategoriesModalVisible(false)} style={styles.closeButton}>
-                <MaterialCommunityIcons name="close" size={24} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            <View style={{ padding: 16 }}>
-              <TextInput
-                mode="outlined"
-                placeholder={t('forms.categoryPlaceholder')}
-                value={newCategory}
-                onChangeText={setNewCategory}
-                style={{ marginBottom: 12 }}
-              />
-              <Button mode="contained" onPress={handleAddCategory}>{t('common.add') || 'Add'}</Button>
-            </View>
             <ScrollView style={styles.languageList}>
-              {categories.map(c => (
-                <View key={c.id} style={styles.languageItem}>
-                  <Text style={styles.languageItemText}>{c.name}</Text>
-                  <TouchableOpacity onPress={() => removeCategory(c.id)}>
-                    <MaterialCommunityIcons name="delete" size={20} color={COLORS.error} />
-                  </TouchableOpacity>
-                </View>
+              {LANGUAGES.map((language) => (
+                <TouchableOpacity
+                  key={language.code}
+                  style={[
+                    styles.languageItem,
+                    currentLanguage === language.code && styles.languageItemSelected
+                  ]}
+                  onPress={() => {
+                    setLanguage(language.code as LanguageCode);
+                    setLanguageModalVisible(false);
+                    // Language change implemented
+                    Alert.alert(
+                      t('common.success'),
+                      `${t('settings.language')} ${t('common.success')}: ${language.nativeName}`,
+                      [{ text: 'OK' }]
+                    );
+                  }}
+                >
+                  <View style={styles.languageItemContent}>
+                    <Text style={[
+                      styles.languageItemText,
+                      currentLanguage === language.code && styles.languageItemTextSelected
+                    ]}>
+                      {language.nativeName}
+                    </Text>
+                    <Text style={[
+                      styles.languageItemSubtext,
+                      currentLanguage === language.code && styles.languageItemSubtextSelected
+                    ]}>
+                      {language.name}
+                    </Text>
+                  </View>
+                  {currentLanguage === language.code && (
+                    <MaterialCommunityIcons
+                      name="check"
+                      size={24}
+                      color={COLORS.primary}
+                    />
+                  )}
+                </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
         </View>
       )}
 
-      {/* Units Manager */}
-      {unitsModalVisible && (
-        <View style={styles.languageModal}>
-          <View style={styles.languageModalContent}>
-            <View style={styles.languageModalHeader}>
-              <Text style={styles.languageModalTitle}>{t('settings.units')}</Text>
-              <TouchableOpacity onPress={() => setUnitsModalVisible(false)} style={styles.closeButton}>
-                <MaterialCommunityIcons name="close" size={24} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            <View style={{ padding: 16 }}>
-              <TextInput
-                mode="outlined"
-                placeholder={t('settings.units') + ' name'}
-                value={newUnitName}
-                onChangeText={setNewUnitName}
-                style={{ marginBottom: 8 }}
-              />
-              <TextInput
-                mode="outlined"
-                placeholder={t('forms.unitPlaceholder')}
-                value={newUnitAbbr}
-                onChangeText={setNewUnitAbbr}
-                style={{ marginBottom: 12 }}
-              />
-              <Button mode="contained" onPress={handleAddUnit}>{t('common.add') || 'Add'}</Button>
-            </View>
-            <ScrollView style={styles.languageList}>
-              {units.map(u => (
-                <View key={u.id} style={styles.languageItem}>
-                  <Text style={styles.languageItemText}>{u.name} ({u.abbreviation})</Text>
-                  <TouchableOpacity onPress={() => removeUnit(u.id)}>
-                    <MaterialCommunityIcons name="delete" size={20} color={COLORS.error} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      )}
+
 
       {/* Locations Manager */}
       {locationsModalVisible && (
@@ -1007,6 +1033,25 @@ export default function SettingsScreen() {
         onClose={() => setSupportModalVisible(false)}
       />
 
+      {/* Onboarding Modal */}
+      <Modal
+        visible={onboardingModalVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+      >
+        <OnboardingScreen onComplete={() => setOnboardingModalVisible(false)} />
+      </Modal>
+
+      {/* Version Update Modal */}
+      {versionInfo && (
+        <VersionUpdateModal
+          visible={versionUpdateModalVisible}
+          versionInfo={versionInfo}
+          onDismiss={handleVersionDismiss}
+          onUpdate={handleVersionUpdate}
+        />
+      )}
+
       {/* Time Picker Modal */}
       {timePickerVisible && (
         <Modal
@@ -1023,7 +1068,7 @@ export default function SettingsScreen() {
                   <MaterialCommunityIcons name="close" size={24} color={COLORS.textSecondary} />
                 </TouchableOpacity>
               </View>
-              
+
               <DateTimePicker
                 value={selectedTime}
                 mode="time"
@@ -1032,16 +1077,16 @@ export default function SettingsScreen() {
                 onChange={handleTimeChange}
                 style={styles.timePicker}
               />
-              
+
               {Platform.OS === 'ios' && (
                 <View style={styles.timePickerButtons}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.timePickerButton}
                     onPress={() => setTimePickerVisible(false)}
                   >
                     <Text style={styles.timePickerButtonText}>{t('common.cancel')}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.timePickerButton, styles.timePickerButtonPrimary]}
                     onPress={handleTimeConfirm}
                   >
@@ -1055,7 +1100,18 @@ export default function SettingsScreen() {
           </View>
         </Modal>
       )}
-    </LinearGradient>
+
+      {/* 清除数据模态框 */}
+      <ClearDataModal
+        visible={clearDataModalVisible}
+        onClose={handleClearDataCancel}
+        onConfirm={handleClearDataConfirm}
+        title={t('settings.dataClear.confirmTitle')}
+        message={t('settings.dataClear.confirmMessage')}
+        confirmText={t('settings.dataClear.confirmButton')}
+        cancelText={t('common.cancel')}
+      />
+    </SimpleGradient>
   );
 }
 
@@ -1300,5 +1356,23 @@ const styles = StyleSheet.create({
   },
   timePickerButtonTextPrimary: {
     color: COLORS.surface,
+  },
+  // Version check styles
+  versionRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  versionLoadingIcon: {
+    // 可以添加旋转动画
+  },
+  // Clear data styles
+  clearDataRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  clearDataLoadingIcon: {
+    // 可以添加旋转动画
   },
 });

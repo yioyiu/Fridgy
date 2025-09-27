@@ -11,6 +11,7 @@ export const SUPPORTED_LANGUAGES = {
   de: 'Deutsch',
   ja: '日本語',
   ko: '한국어',
+  it: 'Italiano',
 } as const;
 
 export type LanguageCode = keyof typeof SUPPORTED_LANGUAGES;
@@ -31,6 +32,15 @@ const TRANSLATIONS = {
       error: 'Error',
       success: 'Success',
       retry: 'Retry',
+      ok: 'OK',
+    },
+    // Voice
+    voice: {
+      recognitionSuccess: 'Voice Recognition Success',
+      ingredient: 'Ingredient',
+      location: 'Location',
+      recording: 'Recording...',
+      processing: 'Processing...',
     },
     // AI Analysis
     ai: {
@@ -45,6 +55,11 @@ const TRANSLATIONS = {
       processingError: 'Error occurred during analysis',
       storageTitle: 'Storage Analysis',
       recommendation: 'Adjust based on actual conditions and storage environment',
+      selectAnalysisType: 'Select Analysis Type',
+      storageOption: 'Storage Method',
+      storageDescription: 'Analyze best storage time and method',
+      cookingOption: 'Cooking Method',
+      cookingDescription: 'Recommend two cooking recipes and methods',
     },
     // Navigation
     navigation: {
@@ -78,6 +93,8 @@ const TRANSLATIONS = {
       storage: 'Storage',
       counter: 'Counter',
       noItems: 'No items in this location',
+      items: 'items',
+      item: 'item',
     },
     // Statistics
     statistics: {
@@ -91,6 +108,9 @@ const TRANSLATIONS = {
       recentlyUsed: 'Recently Used',
       storageDistribution: 'Storage Distribution',
       insights: 'Insights',
+      seasonalFruits: 'Seasonal Fruits',
+      noSeasonalFruits: 'No seasonal fruits information available',
+      seasonalFruitsDisclaimer: 'Updated daily at 8 AM with seasonal fruit information',
       performance: 'Performance',
       comingSoon: 'Coming Soon',
       timeframe: 'Timeframe',
@@ -140,7 +160,7 @@ const TRANSLATIONS = {
       checkBackLater: 'Check back later for updates',
       // Timeframe labels
       timeframeWeek: 'This Week',
-      timeframeMonth: 'This Month', 
+      timeframeMonth: 'This Month',
       timeframeQuarter: 'This Quarter',
       timeframeYear: 'This Year',
     },
@@ -187,6 +207,9 @@ const TRANSLATIONS = {
       importDataError: 'Error importing data. Please check file format and try again.',
       clearAllData: 'Clear All Data',
       clearAllDataSubtitle: 'Remove all ingredients',
+      swipeToDelete: 'Swipe to delete',
+      longPressDelete: 'Long press to delete',
+      confirmDelete: 'Confirm delete',
       about: 'About',
       legal: 'Legal',
       privacyPolicy: 'Privacy Policy',
@@ -194,10 +217,42 @@ const TRANSLATIONS = {
       termsOfService: 'Terms of Service',
       termsOfServiceSubtitle: 'Read our terms of service',
       version: 'Version',
+      versionCheck: 'Version Check',
+      versionUpToDate: 'You are using the latest version!',
+      versionCheckError: 'Failed to check for updates. Please try again later.',
       support: 'Support',
       supportSubtitle: 'Get help and contact us',
+      forceUpdateNote: 'This version contains important updates, you must update to continue using the app',
+      // Rating
+      rating: {
+        dialogTitle: 'Rate App',
+        dialogMessage: 'If you enjoy using Fridgy, please take a moment to rate us on the App Store. Your support means a lot to us!',
+        later: 'Rate Later',
+        never: 'Don\'t Ask Again',
+        rateNow: 'Rate Now',
+        thankYou: 'Thank You!',
+        thankYouMessage: 'Thank you for rating Fridgy! Your feedback is very important to us.',
+        youreWelcome: 'You\'re Welcome',
+        errorTitle: 'Cannot Open App Store',
+        errorMessage: 'Unable to open the App Store for rating. Please manually search for "Fridgy" in the App Store to rate us.',
+        manualOpen: 'Open Manually',
+        errorOccurred: 'An error occurred while rating. Please try again later.',
+      },
+      // Data Clear
+      dataClear: {
+        confirmTitle: 'Clear All Data',
+        confirmMessage: 'This will delete all ingredient data, settings, and files. This action cannot be undone. Are you sure you want to continue?',
+        confirmButton: 'Clear All',
+        successTitle: 'Data Cleared Successfully',
+        successMessage: 'The following data has been successfully cleared:',
+        errorTitle: 'Failed to Clear Data',
+        errorMessage: 'The following errors occurred during the clearing process:',
+        errorOccurred: 'An error occurred while clearing data. Please try again later.',
+      },
       rateApp: 'Rate App',
       rateAppSubtitle: 'Rate us on the App Store',
+      viewOnboarding: 'View App Introduction',
+      viewOnboardingSubtitle: 'Watch the app introduction again',
       footerText: 'Made with ❤️ for reducing food waste',
     },
     // Privacy Policy
@@ -334,8 +389,12 @@ const TRANSLATIONS = {
     categories: {
       dairy: 'Dairy',
       meat: 'Meat',
+      fish: 'Fish',
       vegetables: 'Vegetables',
       fruits: 'Fruits',
+      bread: 'Bread',
+      eggs: 'Eggs',
+      pantry: 'Pantry',
       grains: 'Grains',
       beverages: 'Beverages',
       snacks: 'Snacks',
@@ -356,6 +415,8 @@ const TRANSLATIONS = {
       cups: 'cups',
       tablespoons: 'tablespoons',
       teaspoons: 'teaspoons',
+      pack: 'pack',
+      bottle: 'bottle',
     },
     // Locations
     locations: {
@@ -363,6 +424,54 @@ const TRANSLATIONS = {
       freezer: 'Freezer',
       storage: 'Storage',
       counter: 'Counter',
+    },
+    // Onboarding
+    onboarding: {
+      skip: 'Skip',
+      next: 'Next',
+      getStarted: 'Get Started',
+      aiAnalysis: {
+        title: 'AI-Powered Storage Analysis',
+        description: 'Get intelligent recommendations for optimal storage conditions and shelf life',
+        feature1: 'Smart storage location suggestions',
+        feature2: 'Accurate expiration date predictions',
+        feature3: 'Optimal storage method recommendations',
+      },
+      smartInput: {
+        title: 'Smart Ingredient Input',
+        description: 'Simply enter ingredient name and location, AI handles the rest',
+        feature1: 'Automatic category detection',
+        feature2: 'Intelligent expiry date suggestions',
+        feature3: 'One-click data entry',
+      },
+      visualManagement: {
+        title: 'Visual Storage Management',
+        description: 'Organize ingredients by location for better visibility and control',
+        feature1: 'Location-based ingredient grouping',
+        feature2: 'Visual storage overview',
+        feature3: 'Easy inventory management',
+      },
+      dataAnalysis: {
+        title: 'Comprehensive Data Analytics',
+        description: 'Track your food management with detailed insights and metrics',
+        feature1: 'Freshness score tracking',
+        feature2: 'Waste reduction analytics',
+        feature3: 'Performance insights',
+      },
+      expiryHandling: {
+        title: 'Smart Expiry Management',
+        description: 'Get AI-powered suggestions for handling near-expiry ingredients',
+        feature1: 'Cooking recipe suggestions',
+        feature2: 'Preservation method recommendations',
+        feature3: 'Waste reduction tips',
+      },
+      batchImport: {
+        title: 'Batch Import & Export',
+        description: 'Efficiently manage large quantities of ingredients with bulk operations',
+        feature1: 'CSV template download',
+        feature2: 'Bulk ingredient import',
+        feature3: 'Data backup and restore',
+      },
     },
   },
   zh: {
@@ -379,6 +488,15 @@ const TRANSLATIONS = {
       error: '错误',
       success: '成功',
       retry: '重试',
+      ok: '确定',
+    },
+    // Voice
+    voice: {
+      recognitionSuccess: '语音识别成功',
+      ingredient: '食材',
+      location: '地点',
+      recording: '录音中...',
+      processing: '处理中...',
     },
     // AI Analysis
     ai: {
@@ -393,6 +511,11 @@ const TRANSLATIONS = {
       processingError: '分析过程中出现错误',
       storageTitle: '储藏分析',
       recommendation: '建议根据实际情况和储藏条件适当调整',
+      selectAnalysisType: '选择分析类型',
+      storageOption: '储藏方式',
+      storageDescription: '分析最佳储藏时间和方法',
+      cookingOption: '烹饪方式',
+      cookingDescription: '推荐两个烹饪菜式和方法',
     },
     // Navigation
     navigation: {
@@ -426,6 +549,8 @@ const TRANSLATIONS = {
       storage: '储物柜',
       counter: '台面',
       noItems: '此位置暂无物品',
+      items: '个物品',
+      item: '个物品',
     },
     // Statistics
     statistics: {
@@ -439,6 +564,9 @@ const TRANSLATIONS = {
       recentlyUsed: '最近使用',
       storageDistribution: '存储分布',
       insights: '洞察',
+      seasonalFruits: '当季水果',
+      noSeasonalFruits: '暂无当季水果信息',
+      seasonalFruitsDisclaimer: '每天上午8点自动更新当季水果信息',
       performance: '表现',
       comingSoon: '即将推出',
       timeframe: '时间范围',
@@ -535,6 +663,9 @@ const TRANSLATIONS = {
       importDataError: '导入数据时发生错误。请检查文件格式并重试。',
       clearAllData: '清除所有数据',
       clearAllDataSubtitle: '删除所有食材',
+      swipeToDelete: '滑动删除',
+      longPressDelete: '长按删除',
+      confirmDelete: '确认删除',
       about: '关于',
       legal: '法律条款',
       privacyPolicy: '隐私政策',
@@ -542,10 +673,42 @@ const TRANSLATIONS = {
       termsOfService: '服务条款',
       termsOfServiceSubtitle: '阅读我们的服务条款',
       version: '版本',
+      versionCheck: '版本检查',
+      versionUpToDate: '您正在使用最新版本！',
+      versionCheckError: '检查更新失败，请稍后重试。',
       support: '支持',
       supportSubtitle: '获取帮助并联系我们',
+      forceUpdateNote: '此版本包含重要更新，必须更新后才能继续使用',
+      // Rating
+      rating: {
+        dialogTitle: '评价应用',
+        dialogMessage: '如果您喜欢使用 Fridgy，请花一点时间在应用商店为我们评分。您的支持对我们很重要！',
+        later: '稍后评价',
+        never: '不再提醒',
+        rateNow: '立即评价',
+        thankYou: '感谢评价！',
+        thankYouMessage: '感谢您为 Fridgy 评分！您的反馈对我们非常重要。',
+        youreWelcome: '不客气',
+        errorTitle: '无法打开应用商店',
+        errorMessage: '无法打开应用商店进行评分。请手动前往应用商店搜索 "Fridgy" 进行评分。',
+        manualOpen: '手动前往',
+        errorOccurred: '评分时发生错误，请稍后重试。',
+      },
+      // Data Clear
+      dataClear: {
+        confirmTitle: '清除所有数据',
+        confirmMessage: '此操作将删除所有食材数据、设置和文件。此操作不可撤销，确定要继续吗？',
+        confirmButton: '确定清除',
+        successTitle: '数据清除成功',
+        successMessage: '已成功清除以下数据：',
+        errorTitle: '清除数据失败',
+        errorMessage: '清除过程中遇到以下问题：',
+        errorOccurred: '清除数据时发生错误，请稍后重试。',
+      },
       rateApp: '评价应用',
       rateAppSubtitle: '在应用商店评价我们',
+      viewOnboarding: '查看应用介绍',
+      viewOnboardingSubtitle: '重新观看应用介绍',
       footerText: '为减少食物浪费而制作 ❤️',
     },
     // Privacy Policy
@@ -682,8 +845,12 @@ const TRANSLATIONS = {
     categories: {
       dairy: '乳制品',
       meat: '肉类',
+      fish: '鱼类',
       vegetables: '蔬菜',
       fruits: '水果',
+      bread: '面包',
+      eggs: '鸡蛋',
+      pantry: '储藏室',
       grains: '谷物',
       beverages: '饮料',
       snacks: '零食',
@@ -704,6 +871,8 @@ const TRANSLATIONS = {
       cups: '杯',
       tablespoons: '汤匙',
       teaspoons: '茶匙',
+      pack: '包',
+      bottle: '瓶',
     },
     // Locations
     locations: {
@@ -711,6 +880,54 @@ const TRANSLATIONS = {
       freezer: '冷冻室',
       storage: '储物柜',
       counter: '台面',
+    },
+    // Onboarding
+    onboarding: {
+      skip: '跳过',
+      next: '下一步',
+      getStarted: '开始使用',
+      aiAnalysis: {
+        title: 'AI智能储藏分析',
+        description: '获取智能推荐，了解最佳储藏条件和保质期',
+        feature1: '智能储藏位置建议',
+        feature2: '准确的过期日期预测',
+        feature3: '最佳储藏方式推荐',
+      },
+      smartInput: {
+        title: '智能食材输入',
+        description: '只需输入食材名称和位置，AI处理其余部分',
+        feature1: '自动分类检测',
+        feature2: '智能过期日期建议',
+        feature3: '一键数据录入',
+      },
+      visualManagement: {
+        title: '可视化储藏管理',
+        description: '按位置整理食材，提高可视性和控制力',
+        feature1: '基于位置的食材分组',
+        feature2: '可视化储藏概览',
+        feature3: '便捷的库存管理',
+      },
+      dataAnalysis: {
+        title: '全面数据分析',
+        description: '通过详细的洞察和指标跟踪您的食物管理',
+        feature1: '新鲜度评分跟踪',
+        feature2: '减少浪费分析',
+        feature3: '性能洞察',
+      },
+      expiryHandling: {
+        title: '智能过期管理',
+        description: '获取AI驱动的建议，处理即将过期的食材',
+        feature1: '烹饪食谱建议',
+        feature2: '保存方法推荐',
+        feature3: '减少浪费技巧',
+      },
+      batchImport: {
+        title: '批量导入导出',
+        description: '通过批量操作高效管理大量食材',
+        feature1: 'CSV模板下载',
+        feature2: '批量食材导入',
+        feature3: '数据备份和恢复',
+      },
     },
   },
   es: {
@@ -727,6 +944,7 @@ const TRANSLATIONS = {
       error: 'Error',
       success: 'Éxito',
       retry: 'Reintentar',
+      ok: 'OK',
     },
     // AI Analysis
     ai: {
@@ -774,6 +992,8 @@ const TRANSLATIONS = {
       storage: 'Almacén',
       counter: 'Mostrador',
       noItems: 'No hay elementos en esta ubicación',
+      items: 'elementos',
+      item: 'elemento',
     },
     // Statistics
     statistics: {
@@ -895,6 +1115,7 @@ const TRANSLATIONS = {
       version: 'Versión',
       support: 'Soporte',
       supportSubtitle: 'Obtener ayuda y contactarnos',
+      forceUpdateNote: 'Esta versión contiene actualizaciones importantes, debes actualizar para continuar usando la aplicación',
       rateApp: 'Calificar App',
       rateAppSubtitle: 'Califícanos en la App Store',
       footerText: 'Hecho con ❤️ para reducir el desperdicio de alimentos',
@@ -966,6 +1187,7 @@ const TRANSLATIONS = {
       error: 'Erreur',
       success: 'Succès',
       retry: 'Réessayer',
+      ok: 'OK',
     },
     // AI Analysis
     ai: {
@@ -1013,6 +1235,8 @@ const TRANSLATIONS = {
       storage: 'Stockage',
       counter: 'Comptoir',
       noItems: 'Aucun élément dans cet emplacement',
+      items: 'éléments',
+      item: 'élément',
     },
     // Statistics
     statistics: {
@@ -1134,6 +1358,7 @@ const TRANSLATIONS = {
       version: 'Version',
       support: 'Support',
       supportSubtitle: 'Obtenir de l\'aide et nous contacter',
+      forceUpdateNote: 'Cette version contient des mises à jour importantes, vous devez mettre à jour pour continuer à utiliser l\'application',
       rateApp: 'Évaluer l\'App',
       rateAppSubtitle: 'Évaluez-nous sur l\'App Store',
       footerText: 'Fait avec ❤️ pour réduire le gaspillage alimentaire',
@@ -1205,6 +1430,7 @@ const TRANSLATIONS = {
       error: 'Fehler',
       success: 'Erfolg',
       retry: 'Wiederholen',
+      ok: 'OK',
     },
     // AI Analysis
     ai: {
@@ -1252,6 +1478,8 @@ const TRANSLATIONS = {
       storage: 'Lager',
       counter: 'Arbeitsplatte',
       noItems: 'Keine Artikel an diesem Standort',
+      items: 'Artikel',
+      item: 'Artikel',
     },
     // Statistics
     statistics: {
@@ -1373,6 +1601,7 @@ const TRANSLATIONS = {
       version: 'Version',
       support: 'Support',
       supportSubtitle: 'Hilfe erhalten und uns kontaktieren',
+      forceUpdateNote: 'Diese Version enthält wichtige Updates, Sie müssen aktualisieren, um die App weiter zu verwenden',
       rateApp: 'App Bewerten',
       rateAppSubtitle: 'Bewerten Sie uns im App Store',
       footerText: 'Gemacht mit ❤️ um Lebensmittelverschwendung zu reduzieren',
@@ -1444,6 +1673,7 @@ const TRANSLATIONS = {
       error: 'エラー',
       success: '成功',
       retry: '再試行',
+      ok: 'OK',
     },
     // AI Analysis
     ai: {
@@ -1491,6 +1721,8 @@ const TRANSLATIONS = {
       storage: '保存庫',
       counter: 'カウンター',
       noItems: 'この場所にアイテムがありません',
+      items: 'アイテム',
+      item: 'アイテム',
     },
     // Statistics
     statistics: {
@@ -1612,6 +1844,7 @@ const TRANSLATIONS = {
       version: 'バージョン',
       support: 'サポート',
       supportSubtitle: 'ヘルプを取得して連絡',
+      forceUpdateNote: 'このバージョンには重要な更新が含まれています。アプリを継続使用するには更新が必要です',
       rateApp: 'アプリを評価',
       rateAppSubtitle: 'App Storeで評価',
       footerText: '食品廃棄物削減のため❤️で作成',
@@ -1683,6 +1916,7 @@ const TRANSLATIONS = {
       error: '오류',
       success: '성공',
       retry: '다시 시도',
+      ok: '확인',
     },
     // AI Analysis
     ai: {
@@ -1730,6 +1964,8 @@ const TRANSLATIONS = {
       storage: '보관실',
       counter: '카운터',
       noItems: '이 위치에 항목이 없습니다',
+      items: '항목',
+      item: '항목',
     },
     // Statistics
     statistics: {
@@ -1851,6 +2087,7 @@ const TRANSLATIONS = {
       version: '버전',
       support: '지원',
       supportSubtitle: '도움 받기 및 문의',
+      forceUpdateNote: '이 버전에는 중요한 업데이트가 포함되어 있습니다. 앱을 계속 사용하려면 업데이트해야 합니다',
       rateApp: '앱 평가',
       rateAppSubtitle: 'App Store에서 평가',
       footerText: '식품 낭비 감소를 위해❤️로 제작',
@@ -1908,6 +2145,203 @@ const TRANSLATIONS = {
       counter: '카운터',
     },
   },
+  it: {
+    // Common
+    common: {
+      save: 'Salva',
+      cancel: 'Annulla',
+      delete: 'Elimina',
+      edit: 'Modifica',
+      add: 'Aggiungi',
+      close: 'Chiudi',
+      confirm: 'Conferma',
+      loading: 'Caricamento...',
+      error: 'Errore',
+      success: 'Successo',
+      retry: 'Riprova',
+      ok: 'OK',
+    },
+    // AI Analysis
+    ai: {
+      analyzing: 'L\'AI sta analizzando',
+      storageAnalysis: 'migliori condizioni di conservazione',
+      analysisResult: 'Risultato Analisi AI',
+      storageTime: 'Tempo di conservazione ottimale',
+      storageMethod: 'Metodo di conservazione ottimale',
+      storageTimeAndMethod: 'Il tempo e il metodo di conservazione ottimali sono:',
+      dataSource: 'Fonte dati',
+      analysisError: 'Analisi fallita, riprova più tardi',
+      processingError: 'Si è verificato un errore durante l\'analisi',
+      storageTitle: 'Analisi Conservazione',
+      recommendation: 'Regola in base alle condizioni reali e all\'ambiente di conservazione',
+      selectAnalysisType: 'Seleziona Tipo di Analisi',
+      storageOption: 'Metodo di Conservazione',
+      storageDescription: 'Analizza il tempo e il metodo di conservazione ottimali',
+      cookingOption: 'Metodo di Cottura',
+      cookingDescription: 'Raccomanda due ricette e metodi di cottura',
+    },
+    // Navigation
+    navigation: {
+      dashboard: 'Dashboard',
+      ingredients: 'Ingredienti',
+      overview: 'Panoramica',
+      statistics: 'Statistiche',
+      settings: 'Impostazioni',
+    },
+    // Dashboard
+    dashboard: {
+      title: 'Ingredienti',
+      subtitle: 'Gestisci il tuo inventario alimentare',
+      addIngredient: 'Aggiungi Ingrediente',
+      searchPlaceholder: 'Cerca ingredienti...',
+      noIngredients: 'Nessun ingrediente trovato',
+      statusSummary: 'Riepilogo Stato',
+      fresh: 'Fresco',
+      nearExpiry: 'In Scadenza',
+      expired: 'Scaduto',
+      used: 'Usato',
+      total: 'Totale',
+      usedHint: 'Tocca ✓ per ripristinare',
+    },
+    // Overview
+    overview: {
+      title: 'Panoramica Conservazione',
+      subtitle: 'Organizza per posizione',
+      fridge: 'Frigorifero',
+      freezer: 'Congelatore',
+      storage: 'Dispensa',
+      counter: 'Bancone',
+      noItems: 'Nessun elemento in questa posizione',
+      items: 'elementi',
+      item: 'elemento',
+    },
+    // Statistics
+    statistics: {
+      title: 'Statistiche',
+      subtitle: 'Monitora la gestione del cibo',
+      keyMetrics: 'Metriche Chiave',
+      statusOverview: 'Panoramica Stato',
+      freshnessScore: 'Punteggio Freschezza',
+      totalItems: 'Elementi Totali',
+      expiringSoon: 'In Scadenza',
+      recentlyUsed: 'Usati di Recente',
+      storageDistribution: 'Distribuzione Conservazione',
+      insights: 'Insights',
+      seasonalFruits: 'Frutta di Stagione',
+      noSeasonalFruits: 'Nessuna informazione sulla frutta di stagione disponibile',
+      seasonalFruitsDisclaimer: 'Aggiornato quotidianamente alle 8:00 con informazioni sulla frutta di stagione',
+      performance: 'Prestazioni',
+      comingSoon: 'Prossimamente',
+      timeframe: 'Periodo',
+      timeframeLabel: 'Periodo:',
+      periodWeek: 'Settimana',
+      periodMonth: 'Mese',
+      periodQuarter: 'Trimestre',
+      periodYear: 'Anno',
+      last7Days: 'Ultimi 7 Giorni',
+      last30Days: 'Ultimi 30 Giorni',
+      last90Days: 'Ultimi 90 Giorni',
+      inInventory: 'In inventario',
+      overallQuality: 'Qualità generale',
+      readyToUse: 'Pronto all\'uso',
+      useSoon: 'Usa presto',
+      needsDisposal: 'Necessita smaltimento',
+    },
+    // Settings
+    settings: {
+      title: 'Impostazioni',
+      subtitle: 'Personalizza la tua esperienza',
+      language: 'Lingua',
+      languageDescription: 'Seleziona la lingua dell\'interfaccia',
+      notifications: 'Notifiche',
+      notificationsDescription: 'Gestisci le notifiche push',
+      enableNotifications: 'Abilita Notifiche',
+      enableNotificationsDescription: 'Ricevi promemoria per ingredienti in scadenza',
+      autoSuggestExpiry: 'Suggerimento Automatico Scadenza',
+      autoSuggestExpiryDescription: 'AI suggerisce automaticamente la data di scadenza',
+      theme: 'Tema',
+      themeDescription: 'Personalizza l\'aspetto dell\'app',
+      darkMode: 'Modalità Scura',
+      darkModeDescription: 'Attiva il tema scuro',
+      data: 'Dati',
+      dataDescription: 'Gestisci i tuoi dati',
+      exportData: 'Esporta Dati',
+      exportDataDescription: 'Esporta i tuoi ingredienti in un file',
+      importData: 'Importa Dati',
+      importDataDescription: 'Importa ingredienti da un file',
+      clearData: 'Cancella Dati',
+      clearDataDescription: 'Rimuovi tutti i dati dell\'app',
+      about: 'Informazioni',
+      aboutDescription: 'Informazioni sull\'app',
+      version: 'Versione',
+      privacyPolicy: 'Politica Privacy',
+      termsOfService: 'Termini di Servizio',
+      support: 'Supporto',
+      supportSubtitle: 'Ottieni aiuto e contattaci',
+      forceUpdateNote: 'Questa versione contiene aggiornamenti importanti, è necessario aggiornare per continuare a utilizzare l\'app',
+      rateApp: 'Valuta App',
+      rateAppDescription: 'Aiutaci migliorando l\'app',
+      onboarding: 'Tutorial',
+      onboardingDescription: 'Rivedi il tutorial introduttivo',
+    },
+    // Version Update
+    versionUpdate: {
+      title: 'Aggiornamento Disponibile',
+      description: 'È disponibile una nuova versione dell\'app',
+      releaseNotes: 'Note di Rilascio',
+      updateNow: 'Aggiorna Ora',
+      updateLater: 'Aggiorna Più Tardi',
+      forceUpdateNote: 'Questa versione contiene aggiornamenti importanti, è necessario aggiornare per continuare a utilizzare l\'app',
+    },
+    // Forms
+    forms: {
+      name: 'Nome',
+      namePlaceholder: 'Inserisci il nome dell\'ingrediente',
+      category: 'Categoria',
+      categoryPlaceholder: 'Seleziona categoria',
+      quantity: 'Quantità',
+      unit: 'Unità',
+      purchaseDate: 'Data Acquisto',
+      expiryDate: 'Data Scadenza',
+      location: 'Posizione',
+      locationPlaceholder: 'Seleziona posizione',
+      notes: 'Note',
+      notesPlaceholder: 'Aggiungi note (opzionale)',
+    },
+    // Categories
+    categories: {
+      vegetables: 'Verdure',
+      fruits: 'Frutta',
+      dairy: 'Latticini',
+      meat: 'Carne',
+      seafood: 'Frutti di Mare',
+      grains: 'Cereali',
+      spices: 'Spezie',
+      beverages: 'Bevande',
+      snacks: 'Snack',
+      other: 'Altro',
+    },
+    // Units
+    units: {
+      pieces: 'pezzi',
+      kg: 'kg',
+      g: 'g',
+      lb: 'libbre',
+      oz: 'once',
+      l: 'l',
+      ml: 'ml',
+      cups: 'tazze',
+      tablespoons: 'cucchiai',
+      teaspoons: 'cucchiaini',
+    },
+    // Locations
+    locations: {
+      fridge: 'Frigorifero',
+      freezer: 'Congelatore',
+      storage: 'Dispensa',
+      counter: 'Bancone',
+    },
+  },
 };
 
 // 国际化状态管理
@@ -1921,17 +2355,17 @@ export const useI18n = create<I18nState>()(
   persist(
     (set, get) => ({
       currentLanguage: 'zh',
-      
+
       setLanguage: (language: LanguageCode) => {
         console.log('Setting language to:', language);
         set({ currentLanguage: language });
       },
-      
+
       t: (key: string) => {
         const { currentLanguage } = get();
         const keys = key.split('.');
         let value: any = TRANSLATIONS[currentLanguage];
-        
+
         for (const k of keys) {
           if (value && typeof value === 'object' && k in value) {
             value = value[k];
@@ -1948,7 +2382,7 @@ export const useI18n = create<I18nState>()(
             break;
           }
         }
-        
+
         return typeof value === 'string' ? value : key;
       },
     }),

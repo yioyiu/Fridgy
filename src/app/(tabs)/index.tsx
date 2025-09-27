@@ -40,21 +40,29 @@ export default function DashboardScreen() {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
 
-  // Filter ingredients based on search query
+  // Filter ingredients based on search query and status
   const filteredIngredients = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return ingredients;
+    let filtered = ingredients;
+
+    // Apply status filter
+    if (selectedStatus) {
+      filtered = filtered.filter(ingredient => ingredient.status === selectedStatus);
     }
-    
-    const query = searchQuery.toLowerCase().trim();
-    return ingredients.filter(ingredient => 
-      ingredient.name.toLowerCase().includes(query) ||
-      ingredient.category.toLowerCase().includes(query) ||
-      ingredient.location.toLowerCase().includes(query) ||
-      (ingredient.notes && ingredient.notes.toLowerCase().includes(query))
-    );
-  }, [ingredients, searchQuery]);
+
+    // Apply search query filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(ingredient =>
+        ingredient.name.toLowerCase().includes(query) ||
+        ingredient.location.toLowerCase().includes(query) ||
+        (ingredient.notes && ingredient.notes.toLowerCase().includes(query))
+      );
+    }
+
+    return filtered;
+  }, [ingredients, searchQuery, selectedStatus]);
 
   useEffect(() => {
     // Only fetch ingredients if not already initialized
@@ -127,6 +135,16 @@ export default function DashboardScreen() {
     );
   };
 
+  const handleStatusPress = (status: string) => {
+    if (selectedStatus === status) {
+      // If clicking the same status, clear the filter
+      setSelectedStatus(null);
+    } else {
+      // Set the new status filter
+      setSelectedStatus(status);
+    }
+  };
+
   const renderIngredientCard = ({ item }: { item: Ingredient }) => (
     <IngredientCard
       ingredient={item}
@@ -149,7 +167,25 @@ export default function DashboardScreen() {
         </View>
       );
     }
-    
+
+    if (selectedStatus) {
+      // Show status filter empty state
+      const statusLabels = {
+        'fresh': t('dashboard.fresh'),
+        'near_expiry': t('dashboard.nearExpiry'),
+        'expired': t('dashboard.expired'),
+        'used': t('dashboard.used')
+      };
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateTitle}>没有{statusLabels[selectedStatus as keyof typeof statusLabels]}食材</Text>
+          <Text style={styles.emptyStateSubtitle}>
+            点击其他状态标签查看不同类别的食材
+          </Text>
+        </View>
+      );
+    }
+
     // Show default empty state
     return (
       <View style={styles.emptyState}>
@@ -165,49 +201,89 @@ export default function DashboardScreen() {
     const nearExpiryCount = ingredients.filter(i => i.status === 'near_expiry').length;
     const expiredCount = ingredients.filter(i => i.status === 'expired').length;
     const usedCount = ingredients.filter(i => i.status === 'used').length;
-    
+
     return (
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text style={styles.title}>{t('dashboard.title')}</Text>
           <Text style={styles.subtitle}>
-            {new Date().toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric' 
+            {new Date().toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric'
             })} • {new Date().toLocaleDateString('en-US', { weekday: 'long' })}
           </Text>
         </View>
-        
+
         {/* Status summary */}
         <View style={styles.statusSummary}>
-          <View style={styles.statusItem}>
+          <TouchableOpacity
+            style={[
+              styles.statusItem,
+              selectedStatus === 'fresh' && styles.statusItemSelected
+            ]}
+            onPress={() => handleStatusPress('fresh')}
+            activeOpacity={0.7}
+          >
             <View style={[styles.statusDot, { backgroundColor: COLORS.fresh }]} />
-            <Text style={styles.statusText} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={[
+              styles.statusText,
+              selectedStatus === 'fresh' && styles.statusTextSelected
+            ]} numberOfLines={1} ellipsizeMode="tail">
               {freshCount} {t('dashboard.fresh')}
             </Text>
-          </View>
-          <View style={styles.statusItem}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.statusItem,
+              selectedStatus === 'near_expiry' && styles.statusItemSelected
+            ]}
+            onPress={() => handleStatusPress('near_expiry')}
+            activeOpacity={0.7}
+          >
             <View style={[styles.statusDot, { backgroundColor: COLORS.nearExpiry }]} />
-            <Text style={styles.statusText} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={[
+              styles.statusText,
+              selectedStatus === 'near_expiry' && styles.statusTextSelected
+            ]} numberOfLines={1} ellipsizeMode="tail">
               {nearExpiryCount} {t('dashboard.nearExpiry')}
             </Text>
-          </View>
-          <View style={styles.statusItem}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.statusItem,
+              selectedStatus === 'expired' && styles.statusItemSelected
+            ]}
+            onPress={() => handleStatusPress('expired')}
+            activeOpacity={0.7}
+          >
             <View style={[styles.statusDot, { backgroundColor: COLORS.expired }]} />
-            <Text style={styles.statusText} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={[
+              styles.statusText,
+              selectedStatus === 'expired' && styles.statusTextSelected
+            ]} numberOfLines={1} ellipsizeMode="tail">
               {expiredCount} {t('dashboard.expired')}
             </Text>
-          </View>
-          <View style={styles.statusItem}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.statusItem,
+              selectedStatus === 'used' && styles.statusItemSelected
+            ]}
+            onPress={() => handleStatusPress('used')}
+            activeOpacity={0.7}
+          >
             <View style={[styles.statusDot, { backgroundColor: COLORS.used }]} />
-            <Text style={styles.statusText} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={[
+              styles.statusText,
+              selectedStatus === 'used' && styles.statusTextSelected
+            ]} numberOfLines={1} ellipsizeMode="tail">
               {usedCount} {t('dashboard.used')}
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
     );
-  }, [t, ingredients.length]);
+  }, [t, ingredients.length, selectedStatus]);
 
   if (error) {
     return (
@@ -230,10 +306,10 @@ export default function DashboardScreen() {
       <View style={{ height: insets.top }} />
       <View style={styles.searchHeader}>
         <View style={styles.searchBar}>
-          <MaterialCommunityIcons 
-            name="magnify" 
-            size={20} 
-            color={COLORS.textSecondary} 
+          <MaterialCommunityIcons
+            name="magnify"
+            size={20}
+            color={COLORS.textSecondary}
             style={styles.searchIcon}
           />
           <TextInput
@@ -267,7 +343,7 @@ export default function DashboardScreen() {
         icon="plus"
         color="#FFFFFF"
         customSize={64}
-        style={styles.fab}
+        style={[styles.fab, { backgroundColor: '#4CAF50', left: '50%', marginLeft: -32, bottom: 95 }]}
         onPress={handleQuickAdd}
       />
 
@@ -381,6 +457,16 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: 'center',
   },
+  statusItemSelected: {
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  statusTextSelected: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
   listContent: {
     flexGrow: 1,
     paddingHorizontal: 16,
@@ -423,7 +509,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     margin: 24,
     left: 0,
-    bottom: 120,
+    bottom: 95,
     backgroundColor: COLORS.primary,
     borderRadius: 32,
     width: 64,

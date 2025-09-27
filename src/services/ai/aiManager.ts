@@ -11,6 +11,14 @@ interface StorageAnalysisResult {
   rawResponse?: string; // 添加原始AI回答字段
 }
 
+interface LocationStorageAnalysisResult {
+  item: string;
+  location: string;
+  suggestedDays: number;
+  reason: string;
+  source: '智谱AI' | 'DeepSeek AI' | '本地分析';
+}
+
 interface CookingAdviceResult {
   ingredients: string[];
   advice: string;
@@ -20,7 +28,7 @@ interface CookingAdviceResult {
 class AIManager {
   async analyzeStorageTime(itemName: string): Promise<StorageAnalysisResult | null> {
     console.log('开始AI储藏分析，物品:', itemName);
-    
+
     // 优先级1: 尝试智谱AI
     try {
       console.log('尝试调用智谱AI...');
@@ -35,7 +43,7 @@ class AIManager {
     } catch (error) {
       console.log('智谱AI调用失败，尝试DeepSeek AI:', error);
     }
-    
+
     // 优先级2: 尝试DeepSeek AI
     try {
       console.log('尝试调用DeepSeek AI...');
@@ -50,7 +58,7 @@ class AIManager {
     } catch (error) {
       console.log('DeepSeek AI调用失败，使用本地分析:', error);
     }
-    
+
     // 优先级3: 本地分析（深度获取）
     console.log('使用本地分析作为最后备选');
     const localResult = this.getLocalAnalysis(itemName);
@@ -59,7 +67,7 @@ class AIManager {
 
   async getCookingAdvice(ingredients: string[]): Promise<CookingAdviceResult | null> {
     console.log('开始AI烹饪建议分析，食材:', ingredients);
-    
+
     // 优先级1: 尝试智谱AI
     try {
       console.log('尝试调用智谱AI获取烹饪建议...');
@@ -74,7 +82,7 @@ class AIManager {
     } catch (error) {
       console.log('智谱AI调用失败，尝试DeepSeek AI:', error);
     }
-    
+
     // 优先级2: 尝试DeepSeek AI
     try {
       console.log('尝试调用DeepSeek AI获取烹饪建议...');
@@ -89,11 +97,99 @@ class AIManager {
     } catch (error) {
       console.log('DeepSeek AI调用失败，使用本地建议:', error);
     }
-    
+
     // 优先级3: 本地建议
     console.log('使用本地建议作为最后备选');
     const localResult = this.getLocalCookingAdvice(ingredients);
     return localResult;
+  }
+
+  async analyzeLocationStorageTime(itemName: string, location: string): Promise<LocationStorageAnalysisResult | null> {
+    console.log('开始AI位置存储分析，物品:', itemName, '位置:', location);
+
+    // 优先级1: 尝试智谱AI
+    try {
+      console.log('尝试调用智谱AI...');
+      const zhipuResult = await zhipuService.analyzeLocationStorageTime(itemName, location);
+      if (zhipuResult) {
+        console.log('智谱AI位置分析成功');
+        return {
+          item: itemName,
+          location,
+          suggestedDays: zhipuResult.days,
+          reason: zhipuResult.reason,
+          source: '智谱AI'
+        };
+      }
+    } catch (error) {
+      console.warn('智谱AI位置分析失败:', error);
+    }
+
+    // 优先级2: 尝试DeepSeek AI
+    try {
+      console.log('尝试调用DeepSeek AI...');
+      const deepSeekResult = await deepSeekService.analyzeLocationStorageTime(itemName, location);
+      if (deepSeekResult) {
+        console.log('DeepSeek AI位置分析成功');
+        return {
+          item: itemName,
+          location,
+          suggestedDays: deepSeekResult.days,
+          reason: deepSeekResult.reason,
+          source: 'DeepSeek AI'
+        };
+      }
+    } catch (error) {
+      console.warn('DeepSeek AI位置分析失败:', error);
+    }
+
+    // 优先级3: 本地分析
+    console.log('使用本地位置分析');
+    return this.getLocalLocationStorageAnalysis(itemName, location);
+  }
+
+  private getLocalLocationStorageAnalysis(itemName: string, location: string): LocationStorageAnalysisResult {
+    // 本地存储期限分析逻辑
+    const itemLower = itemName.toLowerCase();
+    let suggestedDays = 7; // 默认7天
+    let reason = '';
+
+    // 根据位置和物品类型分析
+    if (location.toLowerCase().includes('fridge') || location.toLowerCase().includes('冰箱')) {
+      if (itemLower.includes('milk') || itemLower.includes('牛奶')) {
+        suggestedDays = 7;
+        reason = '牛奶在冰箱中通常可保存7天';
+      } else if (itemLower.includes('meat') || itemLower.includes('肉')) {
+        suggestedDays = 3;
+        reason = '肉类在冰箱中建议3天内食用';
+      } else if (itemLower.includes('vegetable') || itemLower.includes('蔬菜')) {
+        suggestedDays = 5;
+        reason = '蔬菜在冰箱中可保存5天左右';
+      } else if (itemLower.includes('fruit') || itemLower.includes('水果')) {
+        suggestedDays = 7;
+        reason = '水果在冰箱中可保存约7天';
+      } else {
+        suggestedDays = 7;
+        reason = '一般食品在冰箱中可保存7天';
+      }
+    } else if (location.toLowerCase().includes('freezer') || location.toLowerCase().includes('冷冻')) {
+      suggestedDays = 30;
+      reason = '冷冻食品通常可保存30天以上';
+    } else if (location.toLowerCase().includes('pantry') || location.toLowerCase().includes('储藏室')) {
+      suggestedDays = 14;
+      reason = '储藏室食品通常可保存14天';
+    } else {
+      suggestedDays = 3;
+      reason = '常温存放建议3天内食用';
+    }
+
+    return {
+      item: itemName,
+      location,
+      suggestedDays,
+      reason,
+      source: '本地分析'
+    };
   }
 
   // 本地分析功能
@@ -117,7 +213,7 @@ class AIManager {
       '芹菜': { duration: '1-2周', method: '冷藏保存' },
       '韭菜': { duration: '3-5天', method: '冷藏保存' },
       '豆芽': { duration: '2-3天', method: '冷藏保存' },
-      
+
       // 水果类
       '苹果': { duration: '1-2个月', method: '冷藏保存' },
       '香蕉': { duration: '5-7天', method: '室温保存' },
@@ -131,7 +227,7 @@ class AIManager {
       '西瓜': { duration: '1-2周', method: '冷藏保存' },
       '芒果': { duration: '5-7天', method: '室温保存' },
       '樱桃': { duration: '3-5天', method: '冷藏保存' },
-      
+
       // 肉类（冷藏）
       '猪肉': { duration: '3-5天', method: '冷藏保存' },
       '牛肉': { duration: '3-5天', method: '冷藏保存' },
@@ -141,14 +237,14 @@ class AIManager {
       '螃蟹': { duration: '1-2天', method: '冷藏保存' },
       '羊肉': { duration: '3-5天', method: '冷藏保存' },
       '鸭肉': { duration: '1-2天', method: '冷藏保存' },
-      
+
       // 乳制品
       '牛奶': { duration: '5-7天', method: '冷藏保存' },
       '酸奶': { duration: '1-2周', method: '冷藏保存' },
       '奶酪': { duration: '2-4周', method: '冷藏保存' },
       '鸡蛋': { duration: '3-5周', method: '冷藏保存' },
       '黄油': { duration: '1-3个月', method: '冷藏保存' },
-      
+
       // 调料
       '酱油': { duration: '2-3年', method: '室温密封' },
       '醋': { duration: '2-3年', method: '室温密封' },
@@ -158,21 +254,21 @@ class AIManager {
       '蜂蜜': { duration: '无限期', method: '室温密封' },
       '胡椒粉': { duration: '2-3年', method: '干燥密封' },
       '料酒': { duration: '1-2年', method: '阴凉密封' },
-      
+
       // 主食
       '大米': { duration: '6个月-1年', method: '干燥密封' },
       '面粉': { duration: '6-8个月', method: '干燥密封' },
       '面包': { duration: '3-5天', method: '室温密封' },
       '馒头': { duration: '2-3天', method: '室温保存' },
       '面条': { duration: '1-2年（干面）', method: '干燥密封' },
-      
+
       // 豆类
       '绿豆': { duration: '2-3年', method: '干燥密封' },
       '红豆': { duration: '2-3年', method: '干燥密封' },
       '黄豆': { duration: '2-3年', method: '干燥密封' },
       '豆腐': { duration: '3-5天', method: '冷藏保存' },
       '豆浆': { duration: '1-2天', method: '冷藏保存' },
-      
+
       // 坚果
       '花生': { duration: '6个月-1年', method: '干燥密封' },
       '核桃': { duration: '6个月-1年', method: '干燥密封' },
@@ -180,7 +276,7 @@ class AIManager {
       '瓜子': { duration: '6个月', method: '干燥密封' },
       '腰果': { duration: '6个月-1年', method: '干燥密封' },
       '开心果': { duration: '6个月-1年', method: '干燥密封' },
-      
+
       // 更多水果
       '牛油果': { duration: '5-7天', method: '室温保存' },
       '火龙果': { duration: '1-2周', method: '冷藏保存' },
@@ -190,19 +286,16 @@ class AIManager {
       '龙眼': { duration: '3-5天', method: '冷藏保存' },
       '菠萝': { duration: '1-2周', method: '室温保存' },
       '椰子': { duration: '2-3周', method: '室温保存' },
-      
+
       // 更多蔬菜
-      '韭菜': { duration: '3-5天', method: '冷藏保存' },
       '香菜': { duration: '3-5天', method: '冷藏保存' },
       '生菜': { duration: '3-5天', method: '冷藏保存' },
       '小白菜': { duration: '3-5天', method: '冷藏保存' },
       '油菜': { duration: '3-5天', method: '冷藏保存' },
-      '菠菜': { duration: '3-5天', method: '冷藏保存' },
       '茼蒿': { duration: '3-5天', method: '冷藏保存' },
       '空心菜': { duration: '3-5天', method: '冷藏保存' },
-      
+
       // 更多调料
-      '料酒': { duration: '1-2年', method: '阴凉密封' },
       '生抽': { duration: '2-3年', method: '室温密封' },
       '老抽': { duration: '2-3年', method: '室温密封' },
       '蚝油': { duration: '1-2年', method: '冷藏保存' },
@@ -210,18 +303,15 @@ class AIManager {
       '番茄酱': { duration: '1年', method: '冷藏保存' },
       '沙拉酱': { duration: '6个月', method: '冷藏保存' },
       '芥末': { duration: '1-2年', method: '冷藏保存' },
-      
+
       // 更多主食
-      '馒头': { duration: '2-3天', method: '室温保存' },
       '包子': { duration: '1-2天', method: '冷藏保存' },
       '饺子': { duration: '1-2天', method: '冷藏保存' },
       '馄饨': { duration: '1-2天', method: '冷藏保存' },
       '汤圆': { duration: '1-2天', method: '冷藏保存' },
       '年糕': { duration: '3-5天', method: '冷藏保存' },
-      
+
       // 更多豆制品
-      '豆腐': { duration: '3-5天', method: '冷藏保存' },
-      '豆浆': { duration: '1-2天', method: '冷藏保存' },
       '豆腐干': { duration: '1周', method: '冷藏保存' },
       '腐竹': { duration: '6个月', method: '干燥密封' },
       '豆皮': { duration: '3-5天', method: '冷藏保存' },
@@ -230,7 +320,7 @@ class AIManager {
 
     // 查找精确匹配
     let storageInfo = storageDatabase[itemName];
-    
+
     // 如果没有精确匹配，尝试模糊匹配
     if (!storageInfo) {
       for (const [key, value] of Object.entries(storageDatabase)) {
@@ -240,7 +330,7 @@ class AIManager {
         }
       }
     }
-    
+
     // 如果还是没有匹配，根据类型给出通用建议
     if (!storageInfo) {
       if (itemName.includes('肉') || itemName.includes('鱼') || itemName.includes('虾') || itemName.includes('蟹')) {
@@ -270,22 +360,22 @@ class AIManager {
         storageInfo = { duration: '请查看包装说明', method: '按包装说明' };
       }
     }
-    
+
     // 构造本地分析的原始回答
-    const rawResponse = currentLanguage === 'zh' 
+    const rawResponse = currentLanguage === 'zh'
       ? `${itemName} 最佳储藏时间和储藏方式为：${storageInfo.duration}，${storageInfo.method}`
       : currentLanguage === 'en'
-      ? `The best storage time and storage method for ${itemName} are: ${storageInfo.duration}, ${currentLanguage !== 'zh' ? translateStorageMethod(storageInfo.method, currentLanguage) : storageInfo.method}`
-      : `${itemName} ${currentLanguage === 'es' ? 'El mejor tiempo y método de almacenamiento son:' : 
-                   currentLanguage === 'fr' ? 'Le meilleur temps et méthode de stockage sont:' :
-                   currentLanguage === 'de' ? 'Die beste Lagerzeit und Lagermethode sind:' :
-                   currentLanguage === 'ja' ? '最適な保存時間と保存方法は：' :
-                   currentLanguage === 'ko' ? '최적의 보관 시간과 보관 방법은:' : ''} ${storageInfo.duration}，${currentLanguage !== 'zh' ? translateStorageMethod(storageInfo.method, currentLanguage) : storageInfo.method}`;
-    
+        ? `The best storage time and storage method for ${itemName} are: ${storageInfo.duration}, ${translateStorageMethod(storageInfo.method, currentLanguage)}`
+        : `${itemName} ${currentLanguage === 'es' ? 'El mejor tiempo y método de almacenamiento son:' :
+          currentLanguage === 'fr' ? 'Le meilleur temps et méthode de stockage sont:' :
+            currentLanguage === 'de' ? 'Die beste Lagerzeit und Lagermethode sind:' :
+              currentLanguage === 'ja' ? '最適な保存時間と保存方法は：' :
+                currentLanguage === 'ko' ? '최적의 보관 시간과 보관 방법은:' : ''} ${storageInfo.duration}，${translateStorageMethod(storageInfo.method, currentLanguage)}`;
+
     return {
       item: itemName,
       duration: storageInfo.duration,
-      storageMethod: currentLanguage !== 'zh' ? translateStorageMethod(storageInfo.method, currentLanguage) : storageInfo.method,
+      storageMethod: currentLanguage === 'zh' ? storageInfo.method : translateStorageMethod(storageInfo.method, currentLanguage),
       source: '本地分析',
       rawResponse: rawResponse
     };
@@ -294,7 +384,7 @@ class AIManager {
   // 本地烹饪建议功能
   private getLocalCookingAdvice(ingredients: string[]): CookingAdviceResult {
     const currentLanguage = getCurrentLanguage();
-    
+
     // 基础烹饪建议数据库
     const cookingDatabase: Record<string, { methods: string[]; tips: string }> = {
       // 蔬菜类
@@ -346,7 +436,7 @@ class AIManager {
     // 根据具体食材生成建议
     let specificAdvice = '';
     const matchedIngredients: string[] = [];
-    
+
     ingredients.forEach(ingredient => {
       for (const [key, value] of Object.entries(cookingDatabase)) {
         if (ingredient.includes(key) || key.includes(ingredient)) {
@@ -358,7 +448,7 @@ class AIManager {
     });
 
     const finalAdvice = specificAdvice || generalAdvice[currentLanguage] || generalAdvice.zh;
-    
+
     return {
       ingredients,
       advice: finalAdvice,
@@ -368,4 +458,4 @@ class AIManager {
 }
 
 export const aiManager = new AIManager();
-export type { StorageAnalysisResult, CookingAdviceResult };
+export type { StorageAnalysisResult, CookingAdviceResult, LocationStorageAnalysisResult };

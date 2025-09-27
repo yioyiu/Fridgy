@@ -6,18 +6,17 @@ import { Ingredient, IngredientFormData, IngredientFilters } from '@/utils/types
 import { DEFAULT_CATEGORIES, DEFAULT_UNITS, DEFAULT_LOCATIONS } from '@/utils/constants';
 import { SAMPLE_INGREDIENTS } from '@/utils/helpers/sampleData';
 import { IngredientsAPI } from '@/services/api/ingredients';
-import { notificationService } from '@/services/notifications';
 import { statusMonitor } from '@/services/notifications/statusMonitor';
 
 // Helper functions for calculating ingredient status and freshness
 const calculateStatus = (expirationDate: string): 'fresh' | 'near_expiry' | 'expired' | 'used' => {
   if (!expirationDate) return 'fresh';
-  
+
   const today = new Date();
   const expDate = new Date(expirationDate);
   const diffTime = expDate.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays < 0) return 'expired';
   if (diffDays <= 3) return 'near_expiry';
   return 'fresh';
@@ -25,12 +24,12 @@ const calculateStatus = (expirationDate: string): 'fresh' | 'near_expiry' | 'exp
 
 const calculateFreshnessScore = (expirationDate: string): number => {
   if (!expirationDate) return 0.8;
-  
+
   const today = new Date();
   const expDate = new Date(expirationDate);
   const diffTime = expDate.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays < 0) return 0.0;
   if (diffDays <= 1) return 0.1;
   if (diffDays <= 3) return 0.3;
@@ -43,7 +42,7 @@ const calculateFreshnessScore = (expirationDate: string): number => {
 const getTimeRange = (timeframe: 'week' | 'month' | 'quarter' | 'year') => {
   const now = new Date();
   const start = new Date();
-  
+
   switch (timeframe) {
     case 'week':
       start.setDate(now.getDate() - 7);
@@ -58,7 +57,7 @@ const getTimeRange = (timeframe: 'week' | 'month' | 'quarter' | 'year') => {
       start.setFullYear(now.getFullYear() - 1);
       break;
   }
-  
+
   return {
     start: start.toISOString().split('T')[0]!,
     end: now.toISOString().split('T')[0]!
@@ -81,32 +80,32 @@ const initialState = {
   units: DEFAULT_UNITS,
   locations: DEFAULT_LOCATIONS,
   stats: null,
-  
+
   // Time filtering
   timeFilteredStats: null,
   selectedTimeframe: 'week' as const,
-  
+
   // Loading states
   isLoading: false,
   isAdding: false,
   isUpdating: false,
   isDeleting: false,
-  
+
   // Filters and search
   filters: {} as IngredientFilters,
   searchQuery: '',
-  
+
   // Error handling
   error: null,
-  
+
   // Pagination
   hasMore: true,
   page: 1,
   limit: 20,
-  
+
   // Initialization flag
   isInitialized: false,
-  
+
   hasLocalChanges: false,
 };
 
@@ -127,25 +126,25 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
             status: calculateStatus(ingredient.expiration_date),
             freshness_score: calculateFreshnessScore(ingredient.expiration_date),
           }));
-          
-          set({ 
-            ingredients: updatedSampleIngredients, 
+
+          set({
+            ingredients: updatedSampleIngredients,
             isLoading: false,
-            isInitialized: true 
+            isInitialized: true
           });
 
           // 启动状态监控
           statusMonitor.startMonitoring(updatedSampleIngredients);
-          
+
           // 立即检查一次状态变化
           await statusMonitor.checkStatusChangesNow(updatedSampleIngredients);
         } else {
           set({ isLoading: false });
         }
       } catch (error) {
-        set({ 
+        set({
           error: error instanceof Error ? error.message : 'Failed to fetch ingredients',
-          isLoading: false 
+          isLoading: false
         });
       }
     },
@@ -155,7 +154,7 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
         // TODO: Implement API call
         set({ categories: DEFAULT_CATEGORIES });
       } catch (error) {
-        set({ 
+        set({
           error: error instanceof Error ? error.message : 'Failed to fetch categories'
         });
       }
@@ -166,7 +165,7 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
         // TODO: Implement API call
         set({ units: DEFAULT_UNITS });
       } catch (error) {
-        set({ 
+        set({
           error: error instanceof Error ? error.message : 'Failed to fetch units'
         });
       }
@@ -177,7 +176,7 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
         // TODO: Implement API call
         set({ locations: DEFAULT_LOCATIONS });
       } catch (error) {
-        set({ 
+        set({
           error: error instanceof Error ? error.message : 'Failed to fetch locations'
         });
       }
@@ -187,17 +186,17 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
       try {
         // Calculate stats from current ingredients with real-time status calculation
         const currentIngredients = get().ingredients;
-        
+
         // 重新计算每个食材的状态，确保基于当前日期
         const ingredientsWithUpdatedStatus = currentIngredients.map(ingredient => ({
           ...ingredient,
           status: ingredient.status === 'used' ? 'used' : calculateStatus(ingredient.expiration_date),
           freshness_score: ingredient.status === 'used' ? ingredient.freshness_score : calculateFreshnessScore(ingredient.expiration_date),
         }));
-        
+
         // 更新ingredients状态为重新计算后的数据
         set({ ingredients: ingredientsWithUpdatedStatus });
-        
+
         const stats = {
           total: ingredientsWithUpdatedStatus.length,
           fresh: ingredientsWithUpdatedStatus.filter(i => i.status === 'fresh').length,
@@ -207,16 +206,16 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
           byCategory: {} as Record<string, number>,
           byLocation: {} as Record<string, number>,
         };
-        
+
         // Calculate by category and location
         ingredientsWithUpdatedStatus.forEach(ingredient => {
           stats.byCategory[ingredient.category] = (stats.byCategory[ingredient.category] || 0) + 1;
           stats.byLocation[ingredient.location] = (stats.byLocation[ingredient.location] || 0) + 1;
         });
-        
+
         set({ stats });
       } catch (error) {
-        set({ 
+        set({
           error: error instanceof Error ? error.message : 'Failed to fetch stats'
         });
       }
@@ -248,20 +247,20 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
           ingredients: [newIngredient, ...state.ingredients],
           isAdding: false
         }));
-        
+
         // 添加食材后自动更新统计数据
         await get().fetchStats();
-        
-        
+
+
         // 更新状态监控
         const updatedIngredients = get().ingredients;
         statusMonitor.updateIngredients(updatedIngredients);
-        
+
         return newIngredient;
       } catch (error) {
-        set({ 
+        set({
           error: error instanceof Error ? error.message : 'Failed to add ingredient',
-          isAdding: false 
+          isAdding: false
         });
         return null;
       }
@@ -273,26 +272,26 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
         // Update ingredient locally
         set(state => ({
           ingredients: state.ingredients.map(ingredient =>
-            ingredient.id === id 
+            ingredient.id === id
               ? { ...ingredient, ...data, updated_at: new Date().toISOString() }
               : ingredient
           ),
           isUpdating: false
         }));
-        
+
         // 更新食材后自动更新统计数据
         await get().fetchStats();
-        
-        
+
+
         // 更新状态监控
         const updatedIngredients = get().ingredients;
         statusMonitor.updateIngredients(updatedIngredients);
-        
+
         return get().ingredients.find(i => i.id === id) || null;
       } catch (error) {
-        set({ 
+        set({
           error: error instanceof Error ? error.message : 'Failed to update ingredient',
-          isUpdating: false 
+          isUpdating: false
         });
         return null;
       }
@@ -306,20 +305,20 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
           ingredients: state.ingredients.filter(ingredient => ingredient.id !== id),
           isDeleting: false
         }));
-        
+
         // 删除食材后自动更新统计数据
         await get().fetchStats();
-        
-        
+
+
         // 更新状态监控
         const updatedIngredients = get().ingredients;
         statusMonitor.updateIngredients(updatedIngredients);
-        
+
         return true;
       } catch (error) {
-        set({ 
+        set({
           error: error instanceof Error ? error.message : 'Failed to delete ingredient',
-          isDeleting: false 
+          isDeleting: false
         });
         return false;
       }
@@ -335,17 +334,17 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
               if (ingredient.status === 'used') {
                 // If already used, restore to previous status based on expiration date
                 const previousStatus = calculateStatus(ingredient.expiration_date);
-                return { 
-                  ...ingredient, 
-                  status: previousStatus, 
-                  updated_at: new Date().toISOString() 
+                return {
+                  ...ingredient,
+                  status: previousStatus,
+                  updated_at: new Date().toISOString()
                 };
               } else {
                 // If not used, mark as used and store previous status
-                return { 
-                  ...ingredient, 
-                  status: 'used', 
-                  updated_at: new Date().toISOString() 
+                return {
+                  ...ingredient,
+                  status: 'used',
+                  updated_at: new Date().toISOString()
                 };
               }
             }
@@ -353,20 +352,20 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
           }),
           isUpdating: false
         }));
-        
+
         // 标记为已使用后自动更新统计数据
         await get().fetchStats();
-        
-        
+
+
         // 更新状态监控
         const updatedIngredients = get().ingredients;
         statusMonitor.updateIngredients(updatedIngredients);
-        
+
         return true;
       } catch (error) {
-        set({ 
+        set({
           error: error instanceof Error ? error.message : 'Failed to mark ingredient as used',
-          isUpdating: false 
+          isUpdating: false
         });
         return false;
       }
@@ -397,6 +396,10 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
       set(state => ({
         ingredients: state.ingredients.filter(ingredient => ingredient.id !== id)
       }));
+    },
+
+    clearAllIngredients: () => {
+      set({ ingredients: [] });
     },
 
     // Filters and search
@@ -457,30 +460,30 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
     reset: () => {
       set(initialState);
     },
-    
+
     // Time filtering methods
     setTimeframe: (timeframe: 'week' | 'month' | 'quarter' | 'year') => {
       set({ selectedTimeframe: timeframe });
       // 自动更新时间过滤的统计数据
       get().fetchTimeFilteredStats(timeframe);
     },
-    
+
     fetchTimeFilteredStats: async (timeframe?: 'week' | 'month' | 'quarter' | 'year') => {
       try {
         const currentTimeframe = timeframe || get().selectedTimeframe;
         const timeRange = getTimeRange(currentTimeframe);
         const currentIngredients = get().ingredients;
-        
+
         // 过滤在时间范围内的食材
         const filteredIngredients = filterIngredientsByTimeRange(currentIngredients, timeRange);
-        
+
         // 重新计算过滤后食材的状态
         const ingredientsWithUpdatedStatus = filteredIngredients.map(ingredient => ({
           ...ingredient,
           status: ingredient.status === 'used' ? 'used' : calculateStatus(ingredient.expiration_date),
           freshness_score: ingredient.status === 'used' ? ingredient.freshness_score : calculateFreshnessScore(ingredient.expiration_date),
         }));
-        
+
         // 计算时间过滤后的统计数据
         const timeFilteredStats = {
           total: ingredientsWithUpdatedStatus.length,
@@ -491,21 +494,21 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
           byCategory: {} as Record<string, number>,
           byLocation: {} as Record<string, number>,
         };
-        
+
         // 计算分类和位置分布
         ingredientsWithUpdatedStatus.forEach(ingredient => {
           timeFilteredStats.byCategory[ingredient.category] = (timeFilteredStats.byCategory[ingredient.category] || 0) + 1;
           timeFilteredStats.byLocation[ingredient.location] = (timeFilteredStats.byLocation[ingredient.location] || 0) + 1;
         });
-        
+
         set({ timeFilteredStats });
       } catch (error) {
-        set({ 
+        set({
           error: error instanceof Error ? error.message : 'Failed to fetch time filtered stats'
         });
       }
     },
-    
+
     // Force reload sample data (for testing purposes)
     reloadSampleData: () => {
       // 重新计算样本数据的状态，确保基于当前日期
@@ -514,13 +517,13 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
         status: calculateStatus(ingredient.expiration_date),
         freshness_score: calculateFreshnessScore(ingredient.expiration_date),
       }));
-      
-      set({ 
-        ingredients: updatedSampleIngredients, 
-        isInitialized: true 
+
+      set({
+        ingredients: updatedSampleIngredients,
+        isInitialized: true
       });
     },
-    
+
   }),
   {
     name: 'ingredients-storage',

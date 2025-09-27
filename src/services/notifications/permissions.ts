@@ -1,5 +1,6 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { EnvironmentHelper } from '@/utils/helpers/environment';
+import { getNotificationsModule } from './conditionalImport';
 
 export interface NotificationPermissionResult {
   granted: boolean;
@@ -13,10 +14,19 @@ export class NotificationPermissions {
    */
   static async requestPermissions(): Promise<NotificationPermissionResult> {
     try {
+      const Notifications = await getNotificationsModule();
+      if (!Notifications) {
+        return {
+          granted: false,
+          canAskAgain: false,
+          status: 'unavailable',
+        };
+      }
+
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      
+
       let finalStatus = existingStatus;
-      
+
       // 如果权限未授予，请求权限
       if (existingStatus !== 'granted') {
         const { status } = await Notifications.requestPermissionsAsync({
@@ -49,8 +59,17 @@ export class NotificationPermissions {
    */
   static async checkPermissions(): Promise<NotificationPermissionResult> {
     try {
+      const Notifications = await getNotificationsModule();
+      if (!Notifications) {
+        return {
+          granted: false,
+          canAskAgain: false,
+          status: 'unavailable',
+        };
+      }
+
       const { status } = await Notifications.getPermissionsAsync();
-      
+
       return {
         granted: status === 'granted',
         canAskAgain: status === 'undetermined',
@@ -67,17 +86,28 @@ export class NotificationPermissions {
   }
 
   /**
-   * 获取推送通知令牌
+   * 获取推送通知令牌（仅在开发构建中可用）
    */
   static async getExpoPushToken(): Promise<string | null> {
     try {
+      // 检查推送通知是否在当前环境中可用
+      if (!EnvironmentHelper.isPushNotificationsAvailable()) {
+        console.log('Push notifications not available in current environment');
+        return null;
+      }
+
+      const Notifications = await getNotificationsModule();
+      if (!Notifications) {
+        return null;
+      }
+
       if (!await this.checkPermissions().then(result => result.granted)) {
         console.log('Notification permissions not granted');
         return null;
       }
 
       const token = await Notifications.getExpoPushTokenAsync({
-        projectId: '您的Expo项目ID', // 需要替换为实际的项目ID
+        projectId: '3ae93e28-1b5a-4890-80b2-66aa8186006d', // 从app.json中获取的项目ID
       });
 
       console.log('Expo push token:', token.data);
@@ -91,48 +121,58 @@ export class NotificationPermissions {
   /**
    * 配置通知处理
    */
-  static configureNotifications() {
-    // 配置通知在前台时的行为
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
+  static async configureNotifications() {
+    try {
+      const Notifications = await getNotificationsModule();
+      if (!Notifications) {
+        console.log('Notifications module not available, skipping configuration');
+        return;
+      }
 
-    // Android 通知渠道配置
-    if (Platform.OS === 'android') {
-      Notifications.setNotificationChannelAsync('default', {
-        name: 'Pantry Notifications',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-        sound: 'default',
-        description: 'Food expiry and reminder notifications',
+      // 配置通知在前台时的行为
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
       });
 
-      // 创建过期提醒渠道
-      Notifications.setNotificationChannelAsync('expiry_alerts', {
-        name: 'Expiry Alerts',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF9800',
-        sound: 'default',
-        description: 'Notifications for items that are expiring soon',
-      });
+      // Android 通知渠道配置
+      if (Platform.OS === 'android') {
+        Notifications.setNotificationChannelAsync('default', {
+          name: 'Pantry Notifications',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+          sound: 'default',
+          description: 'Food expiry and reminder notifications',
+        });
 
-      // 创建每日提醒渠道
-      Notifications.setNotificationChannelAsync('daily_reminders', {
-        name: 'Daily Reminders',
-        importance: Notifications.AndroidImportance.DEFAULT,
-        vibrationPattern: [0, 250],
-        lightColor: '#4CAF50',
-        sound: 'default',
-        description: 'Daily summary reminders',
-      });
+        // 创建过期提醒渠道
+        Notifications.setNotificationChannelAsync('expiry_alerts', {
+          name: 'Expiry Alerts',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF9800',
+          sound: 'default',
+          description: 'Notifications for items that are expiring soon',
+        });
+
+        // 创建每日提醒渠道
+        Notifications.setNotificationChannelAsync('daily_reminders', {
+          name: 'Daily Reminders',
+          importance: Notifications.AndroidImportance.DEFAULT,
+          vibrationPattern: [0, 250],
+          lightColor: '#4CAF50',
+          sound: 'default',
+          description: 'Daily summary reminders',
+        });
+      }
+    } catch (error) {
+      console.error('Error configuring notifications:', error);
     }
   }
 }

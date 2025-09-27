@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/utils/constants';
 import { useI18n } from '@/utils/i18n';
 import { useIngredientsStore } from '@/store/ingredients/slice';
-import { CookingAdviceModal } from '@/components/ai';
+import { CookingAdviceModal, SeasonalFruitsCard } from '@/components/ai';
 import { StatusItemsModal } from '@/components/StatusItemsModal';
 
 const { width } = Dimensions.get('window');
@@ -24,15 +24,15 @@ const { width } = Dimensions.get('window');
 export default function StatisticsScreen() {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
-  const { 
-    stats, 
-    timeFilteredStats, 
-    selectedTimeframe, 
-    ingredients, 
-    fetchStats, 
+  const {
+    stats,
+    timeFilteredStats,
+    selectedTimeframe,
+    ingredients,
+    fetchStats,
     fetchTimeFilteredStats,
     setTimeframe,
-    isLoading 
+    isLoading
   } = useIngredientsStore();
   const [refreshing, setRefreshing] = useState(false);
   const [cookingModalVisible, setCookingModalVisible] = useState(false);
@@ -71,7 +71,7 @@ export default function StatisticsScreen() {
     const getTimeRange = (timeframe: 'week' | 'month' | 'quarter' | 'year') => {
       const now = new Date();
       const start = new Date();
-      
+
       switch (timeframe) {
         case 'week':
           start.setDate(now.getDate() - 7);
@@ -86,7 +86,7 @@ export default function StatisticsScreen() {
           start.setFullYear(now.getFullYear() - 1);
           break;
       }
-      
+
       return {
         start: start.toISOString().split('T')[0]!,
         end: now.toISOString().split('T')[0]!
@@ -104,10 +104,10 @@ export default function StatisticsScreen() {
 
     // 获取当前时间范围
     const timeRange = getTimeRange(selectedTimeframe);
-    
+
     // 先按时间范围过滤，再按状态过滤
     const timeFilteredItems = filterIngredientsByTimeRange(ingredients, timeRange);
-    
+
     return timeFilteredItems.filter(item => item.status === status);
   };
 
@@ -123,15 +123,7 @@ export default function StatisticsScreen() {
     return timeFilteredStats || stats;
   };
 
-  // Calculate additional stats
-  const getCategoryDistribution = () => {
-    const currentStats = getCurrentStats();
-    if (!currentStats?.byCategory) return [];
-    return Object.entries(currentStats.byCategory)
-      .map(([category, count]) => ({ category, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5); // Top 5 categories
-  };
+  // Calculate additional stats - Category distribution removed
 
   const getLocationDistribution = () => {
     const currentStats = getCurrentStats();
@@ -154,7 +146,7 @@ export default function StatisticsScreen() {
     const nearExpiryWeight = currentStats.near_expiry * 0.5;
     const expiredWeight = currentStats.expired * 0;
     const usedWeight = (currentStats.used || 0) * 0.8;
-    
+
     return ((freshWeight + nearExpiryWeight + expiredWeight + usedWeight) / currentStats.total) * 100;
   };
 
@@ -181,10 +173,10 @@ export default function StatisticsScreen() {
         <Text style={[styles.statValue, { color }]}>{value}</Text>
         {trend && (
           <View style={styles.trendContainer}>
-            <MaterialCommunityIcons 
-              name="trending-up" 
-              size={16} 
-              color={COLORS.success} 
+            <MaterialCommunityIcons
+              name="trending-up"
+              size={16}
+              color={COLORS.success}
             />
             <Text style={styles.trendText}>{trend}</Text>
           </View>
@@ -219,7 +211,7 @@ export default function StatisticsScreen() {
     showPercentage?: boolean;
   }) => {
     const percentage = total > 0 ? (current / total) * 100 : 0;
-    
+
     return (
       <Card style={styles.progressCard}>
         <Card.Content style={styles.progressContent}>
@@ -230,14 +222,14 @@ export default function StatisticsScreen() {
             )}
           </View>
           <View style={styles.progressBar}>
-            <View 
+            <View
               style={[
-                styles.progressFill, 
-                { 
+                styles.progressFill,
+                {
                   width: `${percentage}%`,
-                  backgroundColor: color 
+                  backgroundColor: color
                 }
-              ]} 
+              ]}
             />
           </View>
           <Text style={styles.progressText}>
@@ -248,21 +240,20 @@ export default function StatisticsScreen() {
     );
   };
 
-  const DistributionCard = ({ title, data, type }: {
+  const DistributionCard = ({ title, data }: {
     title: string;
-    data: Array<{ category?: string; location?: string; count: number }>;
-    type: 'category' | 'location';
+    data: Array<{ location: string; count: number }>;
   }) => {
     const currentStats = getCurrentStats();
-    
+
     return (
       <Card style={styles.distributionCard}>
         <Card.Content>
           <Text style={styles.distributionTitle}>{title}</Text>
           {data.map((item, index) => {
-            const name = type === 'category' ? item.category : item.location;
+            const name = item.location;
             const percentage = currentStats?.total ? (item.count / currentStats.total) * 100 : 0;
-            
+
             return (
               <View key={index} style={styles.distributionItem}>
                 <View style={styles.distributionItemHeader}>
@@ -270,14 +261,14 @@ export default function StatisticsScreen() {
                   <Text style={styles.distributionItemCount}>{item.count}</Text>
                 </View>
                 <View style={styles.distributionBar}>
-                  <View 
+                  <View
                     style={[
-                      styles.distributionFill, 
-                      { 
+                      styles.distributionFill,
+                      {
                         width: `${percentage}%`,
-                        backgroundColor: COLORS.primary 
+                        backgroundColor: COLORS.primary
                       }
-                    ]} 
+                    ]}
                   />
                 </View>
                 <Text style={styles.distributionPercentage}>{percentage.toFixed(1)}%</Text>
@@ -384,6 +375,11 @@ export default function StatisticsScreen() {
           <Text style={styles.subtitle}>{t('statistics.subtitle')}</Text>
         </View>
 
+        {/* Seasonal Fruits Card */}
+        <View style={styles.seasonalFruitsSection}>
+          <SeasonalFruitsCard onRefresh={handleRefresh} />
+        </View>
+
         <TimeframeSelector />
 
         {/* Key Metrics */}
@@ -454,21 +450,21 @@ export default function StatisticsScreen() {
         {/* Progress Charts */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('statistics.performance')}</Text>
-          
+
           <ProgressCard
             title={t('dashboard.fresh')}
             current={getCurrentStats()?.fresh || 0}
             total={getCurrentStats()?.total || 0}
             color={COLORS.fresh}
           />
-          
+
           <ProgressCard
             title={t('dashboard.nearExpiry')}
             current={getCurrentStats()?.near_expiry || 0}
             total={getCurrentStats()?.total || 0}
             color={COLORS.nearExpiry}
           />
-          
+
           <ProgressCard
             title={t('dashboard.expired')}
             current={getCurrentStats()?.expired || 0}
@@ -488,18 +484,13 @@ export default function StatisticsScreen() {
         {/* Distribution Charts */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('statistics.storageDistribution')}</Text>
-          
+
           <View style={styles.distributionGrid}>
-            <DistributionCard
-              title={t('statistics.keyMetrics')}
-              data={getCategoryDistribution()}
-              type="category"
-            />
-            
+            {/* Category distribution removed */}
+
             <DistributionCard
               title={t('overview.title')}
               data={getLocationDistribution()}
-              type="location"
             />
           </View>
         </View>
@@ -507,7 +498,7 @@ export default function StatisticsScreen() {
         {/* Smart Insights */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('statistics.insights')}</Text>
-          
+
           {getCurrentStats()?.near_expiry && getCurrentStats()!.near_expiry > 0 ? (
             <InsightCard
               icon="alert"
@@ -518,7 +509,7 @@ export default function StatisticsScreen() {
               onPress={handleActionRequiredPress}
             />
           ) : null}
-          
+
           {getCurrentStats()?.expired && getCurrentStats()!.expired > 0 ? (
             <InsightCard
               icon="close-circle"
@@ -528,7 +519,7 @@ export default function StatisticsScreen() {
               action={t('statistics.disposeExpired')}
             />
           ) : null}
-          
+
           {getWastePercentage() > 20 ? (
             <InsightCard
               icon="trash-can"
@@ -538,9 +529,9 @@ export default function StatisticsScreen() {
               action={t('statistics.reviewHabits')}
             />
           ) : null}
-          
-          {(!getCurrentStats()?.near_expiry || getCurrentStats()!.near_expiry === 0) && 
-           (!getCurrentStats()?.expired || getCurrentStats()!.expired === 0) ? (
+
+          {(!getCurrentStats()?.near_expiry || getCurrentStats()!.near_expiry === 0) &&
+            (!getCurrentStats()?.expired || getCurrentStats()!.expired === 0) ? (
             <InsightCard
               icon="check-circle"
               title={t('statistics.excellentManagement')}
@@ -671,6 +662,9 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 24,
+  },
+  seasonalFruitsSection: {
+    marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 20,

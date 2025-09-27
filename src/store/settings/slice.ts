@@ -1,17 +1,15 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DEFAULT_CATEGORIES } from '@/utils/constants/categories';
-import { DEFAULT_UNITS } from '@/utils/constants/units';
 import { DEFAULT_LOCATIONS } from '@/utils/constants/locations';
-import type { Category, Unit, Location } from '@/utils/types/ingredient';
+import type { Location } from '@/utils/types/ingredient';
 import { notificationService } from '@/services/notifications';
-import { statusMonitor } from '@/services/notifications/statusMonitor';
+import { EnvironmentHelper } from '@/utils/helpers/environment';
 
 interface SettingsState {
-  categories: Category[];
-  units: Unit[];
   locations: Location[];
+  // Onboarding settings
+  hasSeenOnboarding: boolean;
   // Notification settings
   notificationsEnabled: boolean;
   dailyReminders: boolean;
@@ -23,12 +21,10 @@ interface SettingsState {
   // Daily reminder time
   dailyReminderTime: { hour: number; minute: number };
   // Actions
-  addCategory: (name: string) => void;
-  removeCategory: (id: string) => void;
-  addUnit: (name: string, abbreviation: string) => void;
-  removeUnit: (id: string) => void;
   addLocation: (name: string) => void;
   removeLocation: (id: string) => void;
+  // Onboarding actions
+  setHasSeenOnboarding: (seen: boolean) => void;
   // Setting actions
   setNotificationsEnabled: (enabled: boolean) => Promise<void>;
   setDailyReminders: (enabled: boolean) => Promise<void>;
@@ -42,9 +38,9 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
-      categories: DEFAULT_CATEGORIES,
-      units: DEFAULT_UNITS,
       locations: DEFAULT_LOCATIONS,
+      // Onboarding settings
+      hasSeenOnboarding: false,
       // Default notification settings
       notificationsEnabled: true,
       dailyReminders: true,
@@ -53,39 +49,6 @@ export const useSettingsStore = create<SettingsState>()(
       autoSuggestExpiry: true,
       defaultNearExpiryDays: 3,
       dailyReminderTime: { hour: 8, minute: 0 },
-      addCategory: (name: string) => set((state) => ({
-        categories: [
-          ...state.categories,
-          {
-            id: Date.now().toString(),
-            name: name.trim(),
-            icon: 'tag',
-            color: '#6C757D',
-            default_shelf_life_days: 7,
-            near_expiry_threshold_days: 2,
-            sort_order: state.categories.length + 1,
-          },
-        ],
-      })),
-      removeCategory: (id: string) => set((state) => ({
-        categories: state.categories.filter(c => c.id !== id),
-      })),
-      addUnit: (name: string, abbreviation: string) => set((state) => ({
-        units: [
-          ...state.units,
-          {
-            id: Date.now().toString(),
-            name: name.trim(),
-            abbreviation: abbreviation.trim(),
-            is_weight: false,
-            is_volume: false,
-            is_count: true,
-          },
-        ],
-      })),
-      removeUnit: (id: string) => set((state) => ({
-        units: state.units.filter(u => u.id !== id),
-      })),
       addLocation: (name: string) => set((state) => ({
         locations: [
           ...state.locations,
@@ -101,15 +64,27 @@ export const useSettingsStore = create<SettingsState>()(
       removeLocation: (id: string) => set((state) => ({
         locations: state.locations.filter(l => l.id !== id),
       })),
+      // Onboarding actions
+      setHasSeenOnboarding: (seen: boolean) => {
+        console.log('Store: Setting hasSeenOnboarding to:', seen);
+        set({ hasSeenOnboarding: seen });
+      },
       // Setting actions - 集成真实通知功能
       setNotificationsEnabled: async (enabled: boolean) => {
         console.log('Store: Setting notificationsEnabled to:', enabled);
-        
+
         try {
+          // 检查是否支持通知功能
+          if (!EnvironmentHelper.isLocalNotificationsAvailable()) {
+            console.log('Notifications not available in current environment');
+            set({ notificationsEnabled: false });
+            return;
+          }
+
           if (enabled) {
             // 启用通知并请求权限
             const permissionResult = await notificationService.enableNotifications();
-            
+
             if (!permissionResult.granted) {
               console.log('Notification permissions denied');
               // 如果权限被拒绝，不更新状态
@@ -119,12 +94,9 @@ export const useSettingsStore = create<SettingsState>()(
             // 禁用通知
             await notificationService.disableNotifications();
           }
-          
+
           // 更新状态并同步通知设置，避免多次状态读取
           set((state) => {
-            // 清除状态监控缓存
-            statusMonitor.clearSettingsCache();
-            
             // 异步更新通知服务，不阻塞状态更新
             notificationService.updateSettings({
               enabled,
@@ -136,23 +108,20 @@ export const useSettingsStore = create<SettingsState>()(
             }).catch(error => {
               console.error('Error updating notification settings:', error);
             });
-            
+
             return { notificationsEnabled: enabled };
           });
-          
+
         } catch (error) {
           console.error('Error setting notifications:', error);
         }
       },
       setDailyReminders: async (enabled: boolean) => {
         console.log('Store: Setting dailyReminders to:', enabled);
-        
+
         set((state) => {
-          // 清除状态监控缓存
-          statusMonitor.clearSettingsCache();
-          
           // 异步更新通知服务，不阻塞状态更新
-          if (state.notificationsEnabled) {
+          if (state.notificationsEnabled && EnvironmentHelper.isLocalNotificationsAvailable()) {
             notificationService.updateSettings({
               enabled: state.notificationsEnabled,
               dailyReminders: enabled,
@@ -164,19 +133,16 @@ export const useSettingsStore = create<SettingsState>()(
               console.error('Error updating notification settings:', error);
             });
           }
-          
+
           return { dailyReminders: enabled };
         });
       },
       setNearExpiryAlerts: async (enabled: boolean) => {
         console.log('Store: Setting nearExpiryAlerts to:', enabled);
-        
+
         set((state) => {
-          // 清除状态监控缓存
-          statusMonitor.clearSettingsCache();
-          
           // 异步更新通知服务，不阻塞状态更新
-          if (state.notificationsEnabled) {
+          if (state.notificationsEnabled && EnvironmentHelper.isLocalNotificationsAvailable()) {
             notificationService.updateSettings({
               enabled: state.notificationsEnabled,
               dailyReminders: state.dailyReminders,
@@ -188,19 +154,16 @@ export const useSettingsStore = create<SettingsState>()(
               console.error('Error updating notification settings:', error);
             });
           }
-          
+
           return { nearExpiryAlerts: enabled };
         });
       },
       setExpiredAlerts: async (enabled: boolean) => {
         console.log('Store: Setting expiredAlerts to:', enabled);
-        
+
         set((state) => {
-          // 清除状态监控缓存
-          statusMonitor.clearSettingsCache();
-          
           // 异步更新通知服务，不阻塞状态更新
-          if (state.notificationsEnabled) {
+          if (state.notificationsEnabled && EnvironmentHelper.isLocalNotificationsAvailable()) {
             notificationService.updateSettings({
               enabled: state.notificationsEnabled,
               dailyReminders: state.dailyReminders,
@@ -212,7 +175,7 @@ export const useSettingsStore = create<SettingsState>()(
               console.error('Error updating notification settings:', error);
             });
           }
-          
+
           return { expiredAlerts: enabled };
         });
       },
@@ -223,10 +186,10 @@ export const useSettingsStore = create<SettingsState>()(
       setDefaultNearExpiryDays: async (days: number) => {
         console.log('Store: Setting defaultNearExpiryDays to:', days);
         set({ defaultNearExpiryDays: days });
-        
+
         // 同步通知设置
         const state = get();
-        if (state.notificationsEnabled) {
+        if (state.notificationsEnabled && EnvironmentHelper.isLocalNotificationsAvailable()) {
           await notificationService.updateSettings({
             enabled: state.notificationsEnabled,
             dailyReminders: state.dailyReminders,
@@ -240,10 +203,10 @@ export const useSettingsStore = create<SettingsState>()(
       setDailyReminderTime: async (time: { hour: number; minute: number }) => {
         console.log('Store: Setting dailyReminderTime to:', time);
         set({ dailyReminderTime: time });
-        
+
         // 同步通知设置
         const state = get();
-        if (state.notificationsEnabled) {
+        if (state.notificationsEnabled && EnvironmentHelper.isLocalNotificationsAvailable()) {
           await notificationService.updateSettings({
             enabled: state.notificationsEnabled,
             dailyReminders: state.dailyReminders,
@@ -258,10 +221,9 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'pantry-settings',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ 
-        categories: s.categories, 
-        units: s.units, 
+      partialize: (s) => ({
         locations: s.locations,
+        hasSeenOnboarding: s.hasSeenOnboarding,
         notificationsEnabled: s.notificationsEnabled,
         dailyReminders: s.dailyReminders,
         nearExpiryAlerts: s.nearExpiryAlerts,

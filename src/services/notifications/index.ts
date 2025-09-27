@@ -1,6 +1,7 @@
 import { NotificationPermissions, NotificationPermissionResult } from './permissions';
 import { NotificationScheduler } from './scheduler';
 import { Ingredient } from '@/utils/types/ingredient';
+import { EnvironmentHelper } from '@/utils/helpers/environment';
 
 export interface NotificationSettings {
   enabled: boolean;
@@ -31,8 +32,18 @@ export class NotificationService {
     }
 
     try {
+      // 打印环境信息
+      EnvironmentHelper.logEnvironmentInfo();
+
+      // 在Expo Go中跳过通知配置以避免警告
+      if (EnvironmentHelper.isExpoGo()) {
+        console.log('Running in Expo Go - skipping notification configuration to avoid warnings');
+        this.isInitialized = true;
+        return;
+      }
+
       // 配置通知处理器
-      NotificationPermissions.configureNotifications();
+      await NotificationPermissions.configureNotifications();
       this.isInitialized = true;
       console.log('Notification service initialized');
     } catch (error) {
@@ -45,16 +56,18 @@ export class NotificationService {
    */
   async enableNotifications(): Promise<NotificationPermissionResult> {
     await this.initialize();
-    
+
     try {
       const permissionResult = await NotificationPermissions.requestPermissions();
-      
+
       if (permissionResult.granted) {
-        // 获取推送令牌
+        // 获取推送令牌（仅在开发构建中可用）
         const token = await NotificationPermissions.getExpoPushToken();
         if (token) {
           console.log('Push token obtained:', token);
           // 这里可以将token发送到服务器保存
+        } else {
+          console.log('Push notifications not available in current environment');
         }
 
         // 发送测试通知确认功能正常
@@ -89,7 +102,7 @@ export class NotificationService {
    * 更新通知设置
    */
   async updateSettings(
-    settings: NotificationSettings, 
+    settings: NotificationSettings,
     ingredients: Ingredient[] = []
   ): Promise<void> {
     await this.initialize();
@@ -164,7 +177,7 @@ export class NotificationService {
   }> {
     const permissions = await this.checkPermissions();
     const scheduled = await NotificationScheduler.getScheduledNotifications();
-    
+
     return {
       permissions,
       scheduledCount: scheduled.length,

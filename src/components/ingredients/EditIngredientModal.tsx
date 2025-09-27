@@ -13,10 +13,9 @@ import { TextInput, Button } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ingredient, IngredientFormData } from '@/utils/types/ingredient';
 import { COLORS } from '@/utils/constants';
-import { DEFAULT_CATEGORIES } from '@/utils/constants/categories';
-import { DEFAULT_UNITS } from '@/utils/constants/units';
-import { DEFAULT_LOCATIONS } from '@/utils/constants/locations';
+import { useSettingsStore } from '@/store/settings/slice';
 import { useIngredientsStore } from '@/store/ingredients/slice';
+import { useI18n } from '@/utils/i18n';
 
 export interface EditIngredientModalProps {
   visible: boolean;
@@ -32,7 +31,16 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
   onSuccess,
 }) => {
   const { updateIngredient, isUpdating } = useIngredientsStore();
-  
+  const { locations } = useSettingsStore();
+  const { t } = useI18n();
+
+
+
+  // Helper function to get location name (no translation needed for custom locations)
+  const getLocationName = (locationName: string) => {
+    return locationName;
+  };
+
   const [formData, setFormData] = useState<IngredientFormData>({
     name: '',
     category: '',
@@ -69,32 +77,19 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
 
   const handleInputChange = (field: keyof IngredientFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
+
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
 
-    // Auto-set expiration date based on category
-    if (field === 'category' && value) {
-      const category = DEFAULT_CATEGORIES.find(cat => cat.name === value);
-      if (category) {
-        const expirationDate = new Date();
-        expirationDate.setDate(expirationDate.getDate() + category.default_shelf_life_days);
-        const expirationDateString = expirationDate.toISOString().split('T')[0] || '';
-        setFormData(prev => ({
-          ...prev,
-          expiration_date: expirationDateString
-        }));
-      }
-    }
   };
 
   const handleDateChange = (field: 'purchase_date' | 'expiration_date', event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
       setShowStorageDatePicker(false);
       setShowExpirationDatePicker(false);
-      
+
       // Handle Android date selection
       if (event.type === 'set' && selectedDate) {
         const dateString = selectedDate.toISOString().split('T')[0] || '';
@@ -146,7 +141,7 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
       const fallback = new Date(iso);
       return isNaN(fallback.getTime()) ? new Date() : fallback;
     };
-    
+
     if (Platform.OS === 'ios') {
       return (
         <>
@@ -158,7 +153,7 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
               {formatDate(currentDate)}
             </Text>
           </TouchableOpacity>
-          
+
           {show && (
             <Modal
               transparent={true}
@@ -180,11 +175,11 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
                 <TouchableOpacity
                   style={styles.datePickerContainer}
                   activeOpacity={1}
-                  onPress={() => {}}
+                  onPress={() => { }}
                 >
                   <View style={styles.datePickerHeader}>
                     <Text style={styles.datePickerTitle}>
-                      {field === 'purchase_date' ? 'Select Storage Date' : 'Select Expiration Date'}
+                      {field === 'purchase_date' ? t('forms.purchaseDate') : t('forms.expiryDate')}
                     </Text>
                     <TouchableOpacity
                       onPress={() => {
@@ -193,7 +188,7 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
                       }}
                       style={styles.datePickerDoneButton}
                     >
-                      <Text style={styles.datePickerDoneText}>Done</Text>
+                      <Text style={styles.datePickerDoneText}>{t('common.confirm')}</Text>
                     </TouchableOpacity>
                   </View>
                   <DateTimePicker
@@ -223,7 +218,7 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
               {formatDate(currentDate)}
             </Text>
           </TouchableOpacity>
-          
+
           {show && (
             <DateTimePicker
               value={parseISODate(currentDate)}
@@ -242,21 +237,15 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
 
     // Validation
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-    if (!formData.category) {
-      newErrors.category = 'Category is required';
-    }
-    if (!formData.unit) {
-      newErrors.unit = 'Unit is required';
+      newErrors.name = t('forms.name') + ' ' + t('common.error');
     }
     if (!formData.location) {
-      newErrors.location = 'Location is required';
+      newErrors.location = t('forms.location') + ' ' + t('common.error');
     }
     if (formData.quantity <= 0) {
-      newErrors.quantity = 'Quantity must be greater than 0';
+      newErrors.quantity = t('forms.quantity') + ' must be greater than 0';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -271,7 +260,7 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
         onClose();
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to update ingredient. Please try again.');
+      Alert.alert(t('common.error'), 'Failed to update ingredient. Please try again.');
     }
   };
 
@@ -294,37 +283,12 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
     onClose();
   };
 
-  const renderCategoryButtons = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Category *</Text>
-      <View style={styles.buttonGrid}>
-        {DEFAULT_CATEGORIES.map((category) => (
-          <TouchableOpacity
-            key={category.id}
-            style={[
-              styles.categoryButton,
-              formData.category === category.name && styles.categoryButtonActive
-            ]}
-            onPress={() => handleInputChange('category', category.name)}
-          >
-            <Text style={[
-              styles.categoryButtonText,
-              formData.category === category.name && styles.categoryButtonTextActive
-            ]}>
-              {category.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
-    </View>
-  );
 
   const renderLocationButtons = () => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Storage Location *</Text>
+      <Text style={styles.sectionTitle}>{t('forms.location')} *</Text>
       <View style={styles.buttonGrid}>
-        {DEFAULT_LOCATIONS.map((location) => (
+        {locations.map((location) => (
           <TouchableOpacity
             key={location.id}
             style={[
@@ -337,7 +301,7 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
               styles.locationButtonText,
               formData.location === location.name && styles.locationButtonTextActive
             ]}>
-              {location.name}
+              {getLocationName(location.name)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -357,7 +321,7 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
     >
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Edit Ingredient</Text>
+          <Text style={styles.title}>{t('common.edit')} {t('dashboard.title')}</Text>
           <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
             <Text style={styles.closeText}>✕</Text>
           </TouchableOpacity>
@@ -367,7 +331,7 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
           <View style={styles.formContainer}>
             {/* Name */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Ingredient Name *</Text>
+              <Text style={styles.sectionTitle}>{t('forms.name')} *</Text>
               <TextInput
                 value={formData.name}
                 onChangeText={(text) => handleInputChange('name', text)}
@@ -375,57 +339,13 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
                 style={[styles.input, { color: COLORS.text }]}
                 textColor={COLORS.text as any}
                 mode="outlined"
-                placeholder="e.g., Milk, Chicken Breast, Spinach"
+                placeholder={t('forms.namePlaceholder')}
                 placeholderTextColor={COLORS.textSecondary}
               />
               {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
             </View>
 
-            {/* Category */}
-            {renderCategoryButtons()}
 
-            {/* Quantity and Unit */}
-            <View style={styles.row}>
-              <View style={[styles.section, styles.halfWidth]}>
-                <Text style={styles.sectionTitle}>Quantity *</Text>
-                <TextInput
-                  value={formData.quantity.toString()}
-                  onChangeText={(text) => handleInputChange('quantity', parseFloat(text) || 0)}
-                  error={!!errors.quantity}
-                  style={[styles.input, { color: COLORS.text }]}
-                  textColor={COLORS.text as any}
-                  mode="outlined"
-                  placeholder="1"
-                  placeholderTextColor={COLORS.textSecondary}
-                  keyboardType="numeric"
-                />
-                {errors.quantity && <Text style={styles.errorText}>{errors.quantity}</Text>}
-              </View>
-
-              <View style={[styles.section, styles.halfWidth]}>
-                <Text style={styles.sectionTitle}>Unit *</Text>
-                <View style={styles.unitDropdown}>
-                  {DEFAULT_UNITS.map((unit) => (
-                    <TouchableOpacity
-                      key={unit.id}
-                      style={[
-                        styles.unitButton,
-                        formData.unit === unit.abbreviation && styles.unitButtonActive
-                      ]}
-                      onPress={() => handleInputChange('unit', unit.abbreviation)}
-                    >
-                      <Text style={[
-                        styles.unitButtonText,
-                        formData.unit === unit.abbreviation && styles.unitButtonTextActive
-                      ]}>
-                        {unit.abbreviation}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                {errors.unit && <Text style={styles.errorText}>{errors.unit}</Text>}
-              </View>
-            </View>
 
             {/* Location */}
             {renderLocationButtons()}
@@ -433,26 +353,26 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
             {/* Dates */}
             <View style={styles.row}>
               <View style={[styles.section, styles.halfWidth]}>
-                <Text style={styles.sectionTitle}>Storage Date</Text>
+                <Text style={styles.sectionTitle}>{t('forms.purchaseDate')}</Text>
                 {renderDatePicker('purchase_date', showStorageDatePicker, () => setShowStorageDatePicker(true))}
               </View>
 
               <View style={[styles.section, styles.halfWidth]}>
-                <Text style={styles.sectionTitle}>Expiration Date</Text>
+                <Text style={styles.sectionTitle}>{t('forms.expiryDate')}</Text>
                 {renderDatePicker('expiration_date', showExpirationDatePicker, () => setShowExpirationDatePicker(true))}
               </View>
             </View>
 
             {/* Notes */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Notes</Text>
+              <Text style={styles.sectionTitle}>{t('forms.notes')}</Text>
               <TextInput
                 value={formData.notes}
                 onChangeText={(text) => handleInputChange('notes', text)}
                 style={[styles.input, { color: COLORS.text }]}
                 textColor={COLORS.text as any}
                 mode="outlined"
-                placeholder="Any additional notes..."
+                placeholder={t('forms.notesPlaceholder')}
                 placeholderTextColor={COLORS.textSecondary}
                 multiline
                 numberOfLines={3}
@@ -468,7 +388,7 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
             style={styles.cancelButton}
             disabled={isUpdating}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             mode="contained"
@@ -477,7 +397,7 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
             disabled={isUpdating}
             style={styles.submitButton}
           >
-            Update Ingredient
+            {t('common.save')}
           </Button>
         </View>
       </View>
@@ -541,26 +461,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  categoryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-  },
-  categoryButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  categoryButtonText: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  categoryButtonTextActive: {
-    color: COLORS.surface,
-  },
   locationButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -579,31 +479,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   locationButtonTextActive: {
-    color: COLORS.surface,
-  },
-  unitDropdown: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  unitButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-  },
-  unitButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  unitButtonText: {
-    color: COLORS.text,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  unitButtonTextActive: {
     color: COLORS.surface,
   },
   dateButton: {

@@ -1,6 +1,6 @@
-import * as Notifications from 'expo-notifications';
 import { format, addDays, isBefore, startOfDay } from 'date-fns';
 import { Ingredient } from '@/utils/types/ingredient';
+import { getNotificationsModule } from './conditionalImport';
 
 export interface NotificationContent {
   title: string;
@@ -20,6 +20,12 @@ export class NotificationScheduler {
    */
   static async cancelAllNotifications(): Promise<void> {
     try {
+      const Notifications = await getNotificationsModule();
+      if (!Notifications) {
+        console.log('Notifications module not available, skipping cancellation');
+        return;
+      }
+
       await Notifications.cancelAllScheduledNotificationsAsync();
       console.log('All notifications cancelled');
     } catch (error) {
@@ -32,6 +38,12 @@ export class NotificationScheduler {
    */
   static async cancelNotificationsByType(type: string): Promise<void> {
     try {
+      const Notifications = await getNotificationsModule();
+      if (!Notifications) {
+        console.log('Notifications module not available, skipping cancellation');
+        return;
+      }
+
       const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
       const toCancel = scheduledNotifications
         .filter(notification => notification.content.data?.type === type)
@@ -40,7 +52,7 @@ export class NotificationScheduler {
       await Promise.all(
         toCancel.map(id => Notifications.cancelScheduledNotificationAsync(id))
       );
-      
+
       console.log(`Cancelled ${toCancel.length} notifications of type: ${type}`);
     } catch (error) {
       console.error(`Error cancelling ${type} notifications:`, error);
@@ -51,7 +63,7 @@ export class NotificationScheduler {
    * 安排每日提醒通知
    */
   static async scheduleDailyReminder(
-    enabled: boolean, 
+    enabled: boolean,
     reminderTime: { hour: number; minute: number } = { hour: 8, minute: 0 }
   ): Promise<void> {
     // 先取消现有的每日提醒
@@ -66,7 +78,7 @@ export class NotificationScheduler {
         content: {
           title: '🌅 Pantry 早安提醒',
           body: '查看您的食材库存，优先使用即将过期的物品！',
-          data: { 
+          data: {
             type: 'daily_reminder',
             timestamp: Date.now(),
           },
@@ -88,8 +100,8 @@ export class NotificationScheduler {
    * 安排即将过期物品的提醒
    */
   static async scheduleExpiryAlerts(
-    ingredients: Ingredient[], 
-    nearExpiryEnabled: boolean, 
+    ingredients: Ingredient[],
+    nearExpiryEnabled: boolean,
     expiredEnabled: boolean,
     nearExpiryDays: number = 3
   ): Promise<void> {
@@ -112,10 +124,10 @@ export class NotificationScheduler {
         const nearExpiryDate = addDays(expiryDate, -nearExpiryDays);
 
         // 即将过期提醒 (提前N天)
-        if (nearExpiryEnabled && 
-            isBefore(now, nearExpiryDate) && 
-            ingredient.status !== 'expired') {
-          
+        if (nearExpiryEnabled &&
+          isBefore(now, nearExpiryDate) &&
+          ingredient.status !== 'expired') {
+
           notifications.push({
             identifier: `near_expiry_${ingredient.id}`,
             content: {
@@ -132,10 +144,10 @@ export class NotificationScheduler {
         }
 
         // 过期当天提醒
-        if (expiredEnabled && 
-            isBefore(now, expiryDate) && 
-            ingredient.status !== 'expired') {
-          
+        if (expiredEnabled &&
+          isBefore(now, expiryDate) &&
+          ingredient.status !== 'expired') {
+
           notifications.push({
             identifier: `expired_${ingredient.id}`,
             content: {

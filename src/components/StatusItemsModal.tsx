@@ -93,50 +93,44 @@ export const StatusItemsModal: React.FC<StatusItemsModalProps> = ({
         <View style={[styles.statusIndicator, { backgroundColor: config.color }]} />
         <Text style={styles.itemName}>{item.name}</Text>
         <View style={styles.itemBadges}>
-          {item.category && (
-            <View style={[styles.badge, { backgroundColor: config.color + '20' }]}>
-              <Text style={[styles.badgeText, { color: config.color }]}>
-                {item.category}
-              </Text>
-            </View>
-          )}
+          {/* Category display removed */}
         </View>
       </View>
-      
+
       <View style={styles.itemDetails}>
         {item.location && (
           <View style={styles.detailRow}>
-            <MaterialCommunityIcons 
-              name="map-marker" 
-              size={16} 
-              color={COLORS.textSecondary} 
+            <MaterialCommunityIcons
+              name="map-marker"
+              size={16}
+              color={COLORS.textSecondary}
             />
             <Text style={styles.detailText}>{item.location}</Text>
           </View>
         )}
-        
+
         {item.quantity && (
           <View style={styles.detailRow}>
-            <MaterialCommunityIcons 
-              name="scale" 
-              size={16} 
-              color={COLORS.textSecondary} 
+            <MaterialCommunityIcons
+              name="scale"
+              size={16}
+              color={COLORS.textSecondary}
             />
             <Text style={styles.detailText}>
               {item.quantity} {item.unit || ''}
             </Text>
           </View>
         )}
-        
-        {item.expiryDate && (
+
+        {item.expiration_date && (
           <View style={styles.detailRow}>
-            <MaterialCommunityIcons 
-              name="calendar" 
-              size={16} 
-              color={COLORS.textSecondary} 
+            <MaterialCommunityIcons
+              name="calendar"
+              size={16}
+              color={COLORS.textSecondary}
             />
             <Text style={styles.detailText}>
-              {new Date(item.expiryDate).toLocaleDateString()}
+              {new Date(item.expiration_date).toLocaleDateString()}
             </Text>
           </View>
         )}
@@ -154,10 +148,10 @@ export const StatusItemsModal: React.FC<StatusItemsModalProps> = ({
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <MaterialCommunityIcons 
-              name={config.icon as any} 
-              size={24} 
-              color={config.color} 
+            <MaterialCommunityIcons
+              name={config.icon as any}
+              size={24}
+              color={config.color}
             />
             <View style={styles.titleContainer}>
               <Text style={styles.title}>{config.title}</Text>
@@ -168,28 +162,16 @@ export const StatusItemsModal: React.FC<StatusItemsModalProps> = ({
             <MaterialCommunityIcons name="close" size={24} color={COLORS.text} />
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.content}>
-          {items.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons 
-                name={config.icon as any} 
-                size={64} 
-                color={COLORS.textSecondary} 
-              />
-              <Text style={styles.emptyTitle}>{config.emptyMessage}</Text>
-              <Text style={styles.emptySubtitle}>
-                {t('statistics.checkBackLater')}
-              </Text>
-            </View>
-          ) : (
+          {items.length > 0 && (
             <View style={styles.itemsHeader}>
               <Text style={styles.itemsCount}>
                 {items.length} {t('statistics.items')}
               </Text>
             </View>
           )}
-          
+
           <FlatList
             data={items}
             renderItem={renderItem}
@@ -197,19 +179,17 @@ export const StatusItemsModal: React.FC<StatusItemsModalProps> = ({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
-              items.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <MaterialCommunityIcons 
-                    name={config.icon as any} 
-                    size={64} 
-                    color={COLORS.textSecondary} 
-                  />
-                  <Text style={styles.emptyTitle}>{config.emptyMessage}</Text>
-                  <Text style={styles.emptySubtitle}>
-                    {t('statistics.checkBackLater')}
-                  </Text>
-                </View>
-              ) : null
+              <View style={styles.emptyContainer}>
+                <MaterialCommunityIcons
+                  name={config.icon as any}
+                  size={64}
+                  color={COLORS.textSecondary}
+                />
+                <Text style={styles.emptyTitle}>{config.emptyMessage}</Text>
+                <Text style={styles.emptySubtitle}>
+                  {t('statistics.checkBackLater')}
+                </Text>
+              </View>
             }
           />
         </View>

@@ -7,6 +7,7 @@ import {
   Modal,
   ActivityIndicator,
   Animated,
+  ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '@/utils/constants';
@@ -36,7 +37,7 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
       setAnalysisResult(null);
       setError(null);
       analyzeItem();
-      
+
       // 弹窗动画
       Animated.spring(scaleValue, {
         toValue: 1,
@@ -92,10 +93,10 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
     if (error) {
       return (
         <View style={styles.errorContainer}>
-          <MaterialCommunityIcons 
-            name="alert-circle" 
-            size={48} 
-            color={COLORS.error} 
+          <MaterialCommunityIcons
+            name="alert-circle"
+            size={48}
+            color={COLORS.error}
           />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={analyzeItem}>
@@ -108,17 +109,17 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
     if (analysisResult) {
       return (
         <View style={styles.resultContainer}>
-          <MaterialCommunityIcons 
-            name="brain" 
-            size={48} 
-            color={COLORS.primary} 
+          <MaterialCommunityIcons
+            name="brain"
+            size={48}
+            color={COLORS.primary}
           />
           <Text style={styles.resultTitle}>{t('ai.analysisResult')}</Text>
           <View style={styles.sourceContainer}>
-            <MaterialCommunityIcons 
-              name="source-branch" 
-              size={16} 
-              color={COLORS.textSecondary} 
+            <MaterialCommunityIcons
+              name="source-branch"
+              size={16}
+              color={COLORS.textSecondary}
             />
             <Text style={styles.sourceText}>{t('ai.dataSource')}：{analysisResult.source}</Text>
           </View>
@@ -132,10 +133,10 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
             </Text>
           </View>
           <View style={styles.tipContainer}>
-            <MaterialCommunityIcons 
-              name="lightbulb-outline" 
-              size={16} 
-              color={COLORS.textSecondary} 
+            <MaterialCommunityIcons
+              name="lightbulb-outline"
+              size={16}
+              color={COLORS.textSecondary}
             />
             <Text style={styles.tipText}>{t('ai.recommendation')}</Text>
           </View>
@@ -154,12 +155,12 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
       onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
-        <TouchableOpacity 
-          style={styles.backdrop} 
-          activeOpacity={1} 
+        <TouchableOpacity
+          style={styles.backdrop}
+          activeOpacity={1}
           onPress={handleClose}
         />
-        <Animated.View 
+        <Animated.View
           style={[
             styles.modalContainer,
             {
@@ -170,16 +171,18 @@ export const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({
           <View style={styles.header}>
             <Text style={styles.headerTitle}>AI {t('ai.storageTitle')}</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <MaterialCommunityIcons 
-                name="close" 
-                size={24} 
-                color={COLORS.textSecondary} 
+              <MaterialCommunityIcons
+                name="close"
+                size={24}
+                color={COLORS.textSecondary}
               />
             </TouchableOpacity>
           </View>
-          
+
           <View style={styles.content}>
-            {renderContent()}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {renderContent()}
+            </ScrollView>
           </View>
         </Animated.View>
       </View>
@@ -205,6 +208,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: 20,
     margin: 20,
+    maxHeight: '85%',
     maxWidth: 350,
     width: '90%',
     elevation: 10,
@@ -232,6 +236,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     minHeight: 120,
+    flexShrink: 1,
   },
   loadingContainer: {
     alignItems: 'center',

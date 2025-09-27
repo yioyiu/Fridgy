@@ -30,6 +30,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate EXPO_TOKEN secret is set
+        if: ${{ secrets.EXPO_TOKEN == '' }}
+        run: |
+          echo "::error::Missing EXPO_TOKEN repository secret. Add it in Settings → Secrets and variables → Actions." && exit 1
+
       - name: Use Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -130,5 +135,3 @@ jobs:
         run: |
           echo "Build ID: ${{ steps.eas_build.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
           echo "Artifact: ${{ steps.download_artifact.outputs.artifact_path }}" >> $GITHUB_STEP_SUMMARY
-
-

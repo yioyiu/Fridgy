@@ -11,7 +11,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
   {
     id: '1',
     user_id: 'user-1',
-    name: 'Milk',
+    name: '牛奶',
     category: 'Dairy',
     quantity: 1,
     unit: 'L',
@@ -19,7 +19,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     expiration_date: getDateOffset(7), // 7天后过期 (fresh)
     location: 'Fridge',
     images: [],
-    notes: 'Organic whole milk',
+    notes: '有机全脂牛奶',
     status: 'fresh', // 会被重新计算
     freshness_score: 0.8, // 会被重新计算
     created_at: getDateOffset(-3),
@@ -28,7 +28,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
   {
     id: '2',
     user_id: 'user-1',
-    name: 'Spinach',
+    name: '菠菜',
     category: 'Vegetables',
     quantity: 200,
     unit: 'g',
@@ -36,7 +36,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     expiration_date: getDateOffset(2), // 2天后过期 (near_expiry)
     location: 'Fridge',
     images: [],
-    notes: 'Fresh baby spinach',
+    notes: '新鲜嫩菠菜',
     status: 'near_expiry', // 会被重新计算
     freshness_score: 0.3, // 会被重新计算
     created_at: getDateOffset(-2),
@@ -45,7 +45,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
   {
     id: '3',
     user_id: 'user-1',
-    name: 'Chicken Breast',
+    name: '鸡胸肉',
     category: 'Meat',
     quantity: 500,
     unit: 'g',
@@ -53,7 +53,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     expiration_date: getDateOffset(5), // 5天后过期 (fresh)
     location: 'Fridge',
     images: [],
-    notes: 'Boneless skinless',
+    notes: '无骨无皮',
     status: 'fresh', // 会被重新计算
     freshness_score: 0.9, // 会被重新计算
     created_at: getDateOffset(-1),
@@ -62,7 +62,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
   {
     id: '4',
     user_id: 'user-1',
-    name: 'Bread',
+    name: '面包',
     category: 'Bread',
     quantity: 1,
     unit: 'pc',
@@ -70,7 +70,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     expiration_date: getDateOffset(1), // 1天后过期 (near_expiry)
     location: 'Pantry',
     images: [],
-    notes: 'Whole wheat bread',
+    notes: '全麦面包',
     status: 'near_expiry', // 会被重新计算
     freshness_score: 0.2, // 会被重新计算
     created_at: getDateOffset(-4),
@@ -79,7 +79,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
   {
     id: '5',
     user_id: 'user-1',
-    name: 'Eggs',
+    name: '鸡蛋',
     category: 'Eggs',
     quantity: 12,
     unit: 'pc',
@@ -87,7 +87,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     expiration_date: getDateOffset(15), // 15天后过期 (fresh)
     location: 'Fridge',
     images: [],
-    notes: 'Large brown eggs',
+    notes: '大号棕色鸡蛋',
     status: 'fresh', // 会被重新计算
     freshness_score: 0.95, // 会被重新计算
     created_at: getDateOffset(-5),
@@ -97,7 +97,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
   {
     id: '6',
     user_id: 'user-1',
-    name: 'Yogurt',
+    name: '酸奶',
     category: 'Dairy',
     quantity: 1,
     unit: 'cup',
@@ -105,7 +105,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     expiration_date: getDateOffset(-2), // 2天前就过期了 (expired)
     location: 'Fridge',
     images: [],
-    notes: 'Greek yogurt',
+    notes: '希腊酸奶',
     status: 'expired', // 会被重新计算
     freshness_score: 0.0, // 会被重新计算
     created_at: getDateOffset(-7),
@@ -114,7 +114,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
   {
     id: '7',
     user_id: 'user-1',
-    name: 'Tomatoes',
+    name: '西红柿',
     category: 'Vegetables',
     quantity: 3,
     unit: 'pc',
@@ -122,7 +122,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     expiration_date: getDateOffset(3), // 3天后过期 (near_expiry - 正好在临界值)
     location: 'Counter',
     images: [],
-    notes: 'Fresh tomatoes',
+    notes: '新鲜西红柿',
     status: 'near_expiry', // 会被重新计算
     freshness_score: 0.3, // 会被重新计算
     created_at: getDateOffset(-3),
@@ -132,7 +132,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
   {
     id: '8',
     user_id: 'user-1',
-    name: 'Rice',
+    name: '大米',
     category: 'Grains',
     quantity: 1,
     unit: 'kg',
@@ -140,7 +140,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     expiration_date: getDateOffset(365), // 1年后过期
     location: 'Pantry',
     images: [],
-    notes: 'White rice',
+    notes: '白米',
     status: 'fresh',
     freshness_score: 0.9,
     created_at: getDateOffset(-15),
@@ -149,7 +149,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
   {
     id: '9',
     user_id: 'user-1',
-    name: 'Pasta',
+    name: '意大利面',
     category: 'Grains',
     quantity: 500,
     unit: 'g',
@@ -157,7 +157,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     expiration_date: getDateOffset(300), // 300天后过期
     location: 'Pantry',
     images: [],
-    notes: 'Spaghetti pasta',
+    notes: '意大利面条',
     status: 'fresh',
     freshness_score: 0.9,
     created_at: getDateOffset(-35),
@@ -166,7 +166,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
   {
     id: '10',
     user_id: 'user-1',
-    name: 'Olive Oil',
+    name: '橄榄油',
     category: 'Condiments',
     quantity: 500,
     unit: 'ml',
@@ -174,7 +174,7 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     expiration_date: getDateOffset(200), // 200天后过期
     location: 'Pantry',
     images: [],
-    notes: 'Extra virgin olive oil',
+    notes: '特级初榨橄榄油',
     status: 'fresh',
     freshness_score: 0.8,
     created_at: getDateOffset(-100),
