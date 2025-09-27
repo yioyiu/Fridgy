@@ -1,0 +1,137 @@
+name: android build
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile (from eas.json)
+        required: false
+        default: production
+      channel:
+        description: EAS update channel (optional)
+        required: false
+        default: default
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate EXPO_TOKEN secret is set
+        if: ${{ secrets.EXPO_TOKEN == '' }}
+        run: |
+          echo "::error::Missing EXPO_TOKEN repository secret. Add it in Settings → Secrets and variables → Actions." && exit 1
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefer-offline --no-audit
+
+      - name: Install EAS CLI
+        run: |
+          npm i -g eas-cli@latest --prefer-offline
+
+      - name: Verify EAS account
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas whoami || true
+
+      - name: Build Android with EAS
+        id: eas_build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          PROFILE_INPUT="${{ github.event.inputs.profile }}"
+          PROFILE=${PROFILE_INPUT:-production}
+          echo "Using EAS profile: $PROFILE"
+
+          # Optional channel support for EAS Update (ignored if not applicable)
+          CHANNEL_INPUT="${{ github.event.inputs.channel }}"
+          CHANNEL=${CHANNEL_INPUT:-default}
+
+          # Kick off build and wait for completion
+          BUILD_JSON=$(eas build --platform android --profile "$PROFILE" --non-interactive --wait --json)
+          echo "$BUILD_JSON" > build-result.json
+
+          # Extract buildId and artifact URL
+          echo "Parsing build result..."
+          sudo apt-get update -y >/dev/null 2>&1
+          sudo apt-get install -y jq >/dev/null 2>&1
+          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.[0].id')
+          ARTIFACT_URL=$(echo "$BUILD_JSON" | jq -r '.[0].artifacts.buildUrl // .[0].artifacts?.applicationArchiveUrl')
+
+          if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" = "null" ]; then
+            echo "::error::Failed to parse build ID from EAS output" && exit 1
+          fi
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+
+          if [ -z "$ARTIFACT_URL" ] || [ "$ARTIFACT_URL" = "null" ]; then
+            echo "::warning::Artifact URL not found in immediate output; will attempt later via eas build:view"
+          else
+            echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Resolve artifact URL if missing
+        if: steps.eas_build.outputs.artifact_url == ''
+        id: resolve_artifact
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          sudo apt-get update -y >/dev/null 2>&1
+          sudo apt-get install -y jq >/dev/null 2>&1
+          ARTIFACT_URL=$(eas build:view --build ${{ steps.eas_build.outputs.build_id }} --json | jq -r '.artifacts.buildUrl // .artifacts?.applicationArchiveUrl')
+          if [ -z "$ARTIFACT_URL" ] || [ "$ARTIFACT_URL" = "null" ]; then
+            echo "::error::Could not resolve artifact URL" && exit 1
+          fi
+          echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_OUTPUT
+
+      - name: Download artifact
+        id: download_artifact
+        run: |
+          URL="${{ steps.eas_build.outputs.artifact_url }}"
+          if [ -z "$URL" ]; then
+            URL="${{ steps.resolve_artifact.outputs.artifact_url }}"
+          fi
+          echo "Artifact URL: $URL"
+          mkdir -p dist
+          # Decide filename based on extension
+          FILENAME="app-android"
+          EXT="aab"
+          case "$URL" in
+            *.apk) EXT="apk" ;;
+            *.aab) EXT="aab" ;;
+          esac
+          OUT="dist/$FILENAME.$EXT"
+          curl -L "$URL" -o "$OUT"
+          echo "artifact_path=$OUT" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact to workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ github.run_number }}
+          path: ${{ steps.download_artifact.outputs.artifact_path }}
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          echo "Build ID: ${{ steps.eas_build.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "Artifact: ${{ steps.download_artifact.outputs.artifact_path }}" >> $GITHUB_STEP_SUMMARY
