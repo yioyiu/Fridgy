@@ -75,6 +75,7 @@ export default function DashboardScreen() {
     setRefreshing(false);
   };
 
+
   const handleQuickAdd = () => {
     setQuickAddVisible(true);
   };
@@ -214,6 +215,7 @@ export default function DashboardScreen() {
           </Text>
         </View>
 
+
         {/* Status summary */}
         <View style={styles.statusSummary}>
           <TouchableOpacity
@@ -283,7 +285,7 @@ export default function DashboardScreen() {
         </View>
       </View>
     );
-  }, [t, ingredients.length, selectedStatus]);
+  }, [t, ingredients, selectedStatus]);
 
   if (error) {
     return (
@@ -346,6 +348,7 @@ export default function DashboardScreen() {
         style={[styles.fab, { backgroundColor: '#4CAF50', left: '50%', marginLeft: -32, bottom: 95 }]}
         onPress={handleQuickAdd}
       />
+
 
       <QuickAddModal
         visible={quickAddVisible}
@@ -418,11 +421,12 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: '500',
     paddingVertical: 0,
+    paddingHorizontal: 0,
     margin: 0,
     textAlignVertical: 'center',
     includeFontPadding: false,
     height: 45,
-    lineHeight: 45,
+    lineHeight: 20,
   },
   statusSummary: {
     flexDirection: 'row',

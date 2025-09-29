@@ -87,6 +87,10 @@ export interface IngredientsActions {
   // Force reload sample data (for testing purposes)
   reloadSampleData: () => void;
 
+  // Cleanup operations
+  cleanupUsedIngredients: () => Promise<{ deletedCount: number; message: string }>;
+  getCleanupableUsedIngredients: () => Ingredient[];
+
 }
 
 export type IngredientsStore = IngredientsState & IngredientsActions;

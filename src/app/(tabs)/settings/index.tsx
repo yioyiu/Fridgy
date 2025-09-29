@@ -18,16 +18,15 @@ import { COLORS } from '@/utils/constants';
 import { useI18n, SUPPORTED_LANGUAGES, type LanguageCode } from '@/utils/i18n';
 import { useSettingsStore } from '@/store/settings/slice';
 import { useIngredientsStore } from '@/store/ingredients/slice';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import { PrivacyPolicyModal } from '@/components/PrivacyPolicyModal';
 import { TermsOfServiceModal } from '@/components/TermsOfServiceModal';
 import { SupportModal } from '@/components/SupportModal';
 import { OnboardingScreen } from '@/components/onboarding';
-import { VersionUpdateModal } from '@/components/version';
-import { versionChecker } from '@/services/version/versionChecker';
 import { appRatingService } from '@/services/rating';
 import { dataClearService } from '@/services/data';
+import { versionChecker } from '@/services/version/versionChecker';
 import { SwipeToDelete, LongPressDelete, SimpleGradient, ClearDataModal } from '@/components/ui';
 
 // Language options
@@ -181,14 +180,11 @@ export default function SettingsScreen() {
   const [termsModalVisible, setTermsModalVisible] = useState(false);
   const [supportModalVisible, setSupportModalVisible] = useState(false);
   const [onboardingModalVisible, setOnboardingModalVisible] = useState(false);
-  const [versionUpdateModalVisible, setVersionUpdateModalVisible] = useState(false);
-  const [versionInfo, setVersionInfo] = useState<any>(null);
-  const [isCheckingVersion, setIsCheckingVersion] = useState(false);
   const [isClearingData, setIsClearingData] = useState(false);
   const [useSwipeDelete, setUseSwipeDelete] = useState(false); // 控制使用滑动删除还是长按删除，暂时使用长按删除
   const [clearDataModalVisible, setClearDataModalVisible] = useState(false);
 
-  const { ingredients, addIngredient } = useIngredientsStore();
+  const { ingredients, addIngredient, cleanupUsedIngredients, getCleanupableUsedIngredients } = useIngredientsStore();
 
   // 使用选择器来避免不必要的重新渲染
   const defaultNearExpiryDays = useSettingsStore(state => state.defaultNearExpiryDays);
@@ -251,40 +247,6 @@ export default function SettingsScreen() {
     });
   }, [selectedTime, handleSetDailyReminderTime]);
 
-  // 版本检查处理函数
-  const handleVersionCheck = React.useCallback(async () => {
-    setIsCheckingVersion(true);
-    try {
-      const result = await versionChecker.checkForUpdates();
-      if (result.hasUpdate && result.versionInfo) {
-        setVersionInfo(result.versionInfo);
-        setVersionUpdateModalVisible(true);
-      } else {
-        Alert.alert(
-          t('settings.versionCheck'),
-          t('settings.versionUpToDate'),
-          [{ text: t('common.ok') }]
-        );
-      }
-    } catch (error) {
-      console.error('Version check error:', error);
-      Alert.alert(
-        t('common.error'),
-        t('settings.versionCheckError'),
-        [{ text: t('common.ok') }]
-      );
-    } finally {
-      setIsCheckingVersion(false);
-    }
-  }, [t]);
-
-  const handleVersionUpdate = React.useCallback(() => {
-    setVersionUpdateModalVisible(false);
-  }, []);
-
-  const handleVersionDismiss = React.useCallback(() => {
-    setVersionUpdateModalVisible(false);
-  }, []);
 
   // 评分处理函数
   const handleRateApp = React.useCallback(async () => {
@@ -333,6 +295,27 @@ export default function SettingsScreen() {
   const handleClearDataCancel = React.useCallback(() => {
     setClearDataModalVisible(false);
   }, []);
+
+  // 清理已使用食材处理函数
+  const handleCleanupUsedIngredients = React.useCallback(async () => {
+    try {
+      const result = await cleanupUsedIngredients();
+      Alert.alert(
+        result.deletedCount > 0 ? t('common.success') : t('settings.cleanup.noItems'),
+        result.message,
+        [{ text: t('common.ok') }]
+      );
+    } catch (error) {
+      console.error('Cleanup used ingredients error:', error);
+      Alert.alert(
+        t('common.error'),
+        '清理已使用食材时发生错误，请稍后重试。',
+        [{ text: t('common.ok') }]
+      );
+    }
+  }, [cleanupUsedIngredients, t]);
+
+
 
   // Callback functions to prevent re-renders
 
@@ -397,8 +380,11 @@ export default function SettingsScreen() {
       // 生成文件名
       const fileName = 'pantry_import_template.csv';
 
-      // 保存文件
+      // 保存文件到文档目录
       const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+      console.log('Saving template to:', fileUri);
+
       await FileSystem.writeAsStringAsync(fileUri, csvContent, {
         encoding: FileSystem.EncodingType.UTF8,
       });
@@ -809,6 +795,13 @@ export default function SettingsScreen() {
             />
             <Divider />
             <SettingItem
+              title="清理已使用食材"
+              subtitle={`清理一周前标记为已使用的食材 (${getCleanupableUsedIngredients().length} 个可清理)`}
+              icon="broom"
+              onPress={handleCleanupUsedIngredients}
+            />
+            <Divider />
+            <SettingItem
               title={t('settings.clearAllData')}
               subtitle={t('settings.clearAllDataSubtitle')}
               icon="delete"
@@ -864,27 +857,8 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <SettingItem
               title={t('settings.version')}
-              subtitle={`${versionChecker.getCurrentVersion()} (${versionChecker.getCurrentBuildNumber()})`}
+              subtitle={versionChecker.getFullVersionInfo()}
               icon="information"
-              onPress={handleVersionCheck}
-              right={(props) => (
-                <View style={styles.versionRightContainer}>
-                  {isCheckingVersion && (
-                    <MaterialCommunityIcons
-                      name="loading"
-                      size={16}
-                      color={COLORS.primary}
-                      style={styles.versionLoadingIcon}
-                    />
-                  )}
-                  <MaterialCommunityIcons
-                    {...props}
-                    name="chevron-right"
-                    size={24}
-                    color={COLORS.textSecondary}
-                  />
-                </View>
-              )}
             />
             <Divider />
             <SettingItem
@@ -1042,16 +1016,6 @@ export default function SettingsScreen() {
         <OnboardingScreen onComplete={() => setOnboardingModalVisible(false)} />
       </Modal>
 
-      {/* Version Update Modal */}
-      {versionInfo && (
-        <VersionUpdateModal
-          visible={versionUpdateModalVisible}
-          versionInfo={versionInfo}
-          onDismiss={handleVersionDismiss}
-          onUpdate={handleVersionUpdate}
-        />
-      )}
-
       {/* Time Picker Modal */}
       {timePickerVisible && (
         <Modal
@@ -1111,6 +1075,7 @@ export default function SettingsScreen() {
         confirmText={t('settings.dataClear.confirmButton')}
         cancelText={t('common.cancel')}
       />
+
     </SimpleGradient>
   );
 }
@@ -1358,14 +1323,6 @@ const styles = StyleSheet.create({
     color: COLORS.surface,
   },
   // Version check styles
-  versionRightContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  versionLoadingIcon: {
-    // 可以添加旋转动画
-  },
   // Clear data styles
   clearDataRightContainer: {
     flexDirection: 'row',

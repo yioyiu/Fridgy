@@ -8,20 +8,11 @@ import { COLORS } from '@/utils/constants';
 import { notificationService } from '@/services/notifications';
 import { SeasonalFruitsScheduler } from '@/services/notifications/seasonalFruitsScheduler';
 import { EnvironmentHelper } from '@/utils/helpers/environment';
-import { VersionUpdateModal } from '@/components/version';
-import { useVersionCheck } from '@/hooks/useVersionCheck';
 
 // 保持splash screen可见，直到我们准备隐藏它
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  // 版本检查Hook
-  const {
-    versionInfo,
-    showUpdateModal,
-    dismissUpdateModal,
-    handleUpdate,
-  } = useVersionCheck();
 
   const onLayoutRootView = useCallback(async () => {
     try {
@@ -71,15 +62,6 @@ export default function RootLayout() {
             />
           </Stack>
 
-          {/* 版本更新提示模态框 */}
-          {versionInfo && (
-            <VersionUpdateModal
-              visible={showUpdateModal}
-              versionInfo={versionInfo}
-              onDismiss={dismissUpdateModal}
-              onUpdate={handleUpdate}
-            />
-          )}
         </SafeAreaProvider>
       </PaperProvider>
     </GestureHandlerRootView>

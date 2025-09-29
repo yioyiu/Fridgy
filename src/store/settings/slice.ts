@@ -43,9 +43,9 @@ export const useSettingsStore = create<SettingsState>()(
       hasSeenOnboarding: false,
       // Default notification settings
       notificationsEnabled: true,
-      dailyReminders: true,
+      dailyReminders: false,
       nearExpiryAlerts: true,
-      expiredAlerts: false,
+      expiredAlerts: true,
       autoSuggestExpiry: true,
       defaultNearExpiryDays: 3,
       dailyReminderTime: { hour: 8, minute: 0 },

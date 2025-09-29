@@ -1,6 +1,5 @@
 import { Platform, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
-import { VERSION_CHECK_CONFIG } from '../version/config';
 
 export interface RatingResult {
     success: boolean;
@@ -35,9 +34,9 @@ class AppRatingService {
      */
     private getStoreUrl(): string {
         if (Platform.OS === 'ios') {
-            return VERSION_CHECK_CONFIG.STORE_LINKS.ios;
+            return 'https://apps.apple.com/app/6752112552';
         } else {
-            return VERSION_CHECK_CONFIG.STORE_LINKS.android;
+            return 'https://play.google.com/store/apps/details?id=com.fridgy.app';
         }
     }
 

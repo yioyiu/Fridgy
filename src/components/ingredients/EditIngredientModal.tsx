@@ -93,6 +93,36 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
       // Handle Android date selection
       if (event.type === 'set' && selectedDate) {
         const dateString = selectedDate.toISOString().split('T')[0] || '';
+
+        // Validate date logic
+        if (field === 'expiration_date' && formData.purchase_date) {
+          const purchaseDate = new Date(formData.purchase_date);
+          const expirationDate = new Date(dateString);
+
+          if (expirationDate <= purchaseDate) {
+            Alert.alert(
+              t('forms.dateValidationError') || 'Date Validation Error',
+              t('forms.expirationDateMustBeAfterPurchase') || 'Expiration date must be after purchase date.',
+              [{ text: t('common.ok') || 'OK' }]
+            );
+            return;
+          }
+        }
+
+        if (field === 'purchase_date' && formData.expiration_date) {
+          const purchaseDate = new Date(dateString);
+          const expirationDate = new Date(formData.expiration_date);
+
+          if (expirationDate <= purchaseDate) {
+            Alert.alert(
+              t('forms.dateValidationError') || 'Date Validation Error',
+              t('forms.expirationDateMustBeAfterPurchase') || 'Expiration date must be after purchase date.',
+              [{ text: t('common.ok') || 'OK' }]
+            );
+            return;
+          }
+        }
+
         setFormData(prev => ({
           ...prev,
           [field]: dateString
@@ -102,6 +132,36 @@ export const EditIngredientModal: React.FC<EditIngredientModalProps> = ({
       // iOS - just update the date, keep picker open
       if (selectedDate) {
         const dateString = selectedDate.toISOString().split('T')[0] || '';
+
+        // Validate date logic for iOS
+        if (field === 'expiration_date' && formData.purchase_date) {
+          const purchaseDate = new Date(formData.purchase_date);
+          const expirationDate = new Date(dateString);
+
+          if (expirationDate <= purchaseDate) {
+            Alert.alert(
+              t('forms.dateValidationError') || 'Date Validation Error',
+              t('forms.expirationDateMustBeAfterPurchase') || 'Expiration date must be after purchase date.',
+              [{ text: t('common.ok') || 'OK' }]
+            );
+            return;
+          }
+        }
+
+        if (field === 'purchase_date' && formData.expiration_date) {
+          const purchaseDate = new Date(dateString);
+          const expirationDate = new Date(formData.expiration_date);
+
+          if (expirationDate <= purchaseDate) {
+            Alert.alert(
+              t('forms.dateValidationError') || 'Date Validation Error',
+              t('forms.expirationDateMustBeAfterPurchase') || 'Expiration date must be after purchase date.',
+              [{ text: t('common.ok') || 'OK' }]
+            );
+            return;
+          }
+        }
+
         setFormData(prev => ({
           ...prev,
           [field]: dateString

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '@/utils/constants';
 import { useI18n } from '@/utils/i18n';
 import { SwipePagesContainer } from '@/components/navigation/SwipePagesContainer';
@@ -69,7 +70,12 @@ export default function SwipeLayout() {
     };
 
     const renderTabBar = () => (
-        <View style={styles.tabBar}>
+        <LinearGradient
+            colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.9)', 'rgba(255, 255, 255, 0.95)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tabBar}
+        >
             {tabs.map((tab, index) => (
                 <TouchableOpacity
                     key={tab.key}
@@ -83,7 +89,7 @@ export default function SwipeLayout() {
                     <MaterialCommunityIcons
                         name={tab.icon as any}
                         size={24}
-                        color={currentPage === index ? COLORS.primary : COLORS.textSecondary}
+                        color={currentPage === index ? '#10B981' : '#6B7280'}
                     />
                     <Text
                         style={[
@@ -95,7 +101,7 @@ export default function SwipeLayout() {
                     </Text>
                 </TouchableOpacity>
             ))}
-        </View>
+        </LinearGradient>
     );
 
     const renderPages = () => {
@@ -126,23 +132,23 @@ const styles = StyleSheet.create({
     },
     tabBar: {
         flexDirection: 'row',
-        backgroundColor: COLORS.surface,
-        borderTopWidth: 0,
         paddingBottom: 12,
         paddingTop: 12,
-        height: 90,
-        shadowColor: COLORS.shadowMedium,
-        shadowOffset: { width: 0, height: -6 },
+        paddingHorizontal: 20,
+        height: 70,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
-        shadowRadius: 20,
-        elevation: 20,
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
+        shadowRadius: 12,
+        elevation: 12,
+        borderRadius: 25,
         position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        bottom: 25,
+        left: 20,
+        right: 20,
         zIndex: 1000,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
     },
     tabItem: {
         flex: 1,
@@ -150,22 +156,23 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingVertical: 8,
         paddingHorizontal: 4,
+        position: 'relative',
     },
     activeTabItem: {
-        backgroundColor: COLORS.primary + '15',
-        borderRadius: 12,
-        marginHorizontal: 4,
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        borderRadius: 20,
+        marginHorizontal: 2,
     },
     tabLabel: {
-        fontSize: 11,
-        fontWeight: '600',
+        fontSize: 10,
+        fontWeight: '500',
         marginTop: 4,
-        letterSpacing: 0.5,
-        color: COLORS.textSecondary,
+        letterSpacing: 0.2,
+        color: '#6B7280',
         textAlign: 'center',
     },
     activeTabLabel: {
-        color: COLORS.primary,
-        fontWeight: '700',
+        color: '#10B981',
+        fontWeight: '600',
     },
 });

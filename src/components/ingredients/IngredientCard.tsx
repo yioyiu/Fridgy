@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Ingredient } from '@/utils/types/ingredient';
 import { COLORS } from '@/utils/constants';
 import { formatRelativeDate, calculateDaysToExpiry } from '@/utils/helpers';
+import { useI18n } from '@/utils/i18n';
 
 export interface IngredientCardProps {
   ingredient: Ingredient;
@@ -20,6 +21,7 @@ export const IngredientCard: React.FC<IngredientCardProps> = ({
   onMarkUsed,
   onDelete,
 }) => {
+  const { t } = useI18n();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const daysToExpiry = calculateDaysToExpiry(ingredient.expiration_date);
 
@@ -140,15 +142,8 @@ export const IngredientCard: React.FC<IngredientCardProps> = ({
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.container}>
-        {/* Status indicator */}
-        <View style={[styles.statusIndicator, { backgroundColor: getStatusColor() }]}>
-          <MaterialCommunityIcons
-            name={getStatusIcon() as any}
-            size={20}
-            color={COLORS.textLight}
-          />
-        </View>
+      <View style={[styles.container, { borderLeftColor: getStatusColor(), borderLeftWidth: 6 }]}>
+
 
         {/* Main content */}
         <View style={styles.content}>
@@ -280,7 +275,7 @@ export const IngredientCard: React.FC<IngredientCardProps> = ({
         {ingredient.status === 'used' && (
           <View style={styles.statusHint}>
             <Text style={styles.statusHintText}>
-              Tap ✓ to restore
+              {t('dashboard.usedHint')}
             </Text>
           </View>
         )}
@@ -304,19 +299,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
     borderWidth: 0,
-  },
-  statusIndicator: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 2,
   },
   content: {
     flex: 1,

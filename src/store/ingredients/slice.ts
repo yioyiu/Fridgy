@@ -38,36 +38,56 @@ const calculateFreshnessScore = (expirationDate: string): number => {
   return 0.9;
 };
 
-// Helper function to calculate time range for filtering
+// Helper function to calculate time range for filtering - 按照日历周期计算
 const getTimeRange = (timeframe: 'week' | 'month' | 'quarter' | 'year') => {
   const now = new Date();
-  const start = new Date();
+  let start: Date;
+  let end: Date;
 
   switch (timeframe) {
     case 'week':
-      start.setDate(now.getDate() - 7);
+      // 本周：从本周一开始到今天（如果本周还没过完）
+      start = new Date(now);
+      start.setDate(now.getDate() - now.getDay() + 1); // 本周一
+      start.setHours(0, 0, 0, 0);
+      end = new Date(now);
+      end.setHours(23, 59, 59, 999);
       break;
     case 'month':
-      start.setMonth(now.getMonth() - 1);
+      // 本月：从本月1号到今天
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now);
+      end.setHours(23, 59, 59, 999);
       break;
     case 'quarter':
-      start.setMonth(now.getMonth() - 3);
+      // 本季度：从本季度第一个月开始到今天
+      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      start = new Date(now.getFullYear(), quarterStartMonth, 1);
+      end = new Date(now);
+      end.setHours(23, 59, 59, 999);
       break;
     case 'year':
-      start.setFullYear(now.getFullYear() - 1);
+      // 本年：从今年1月1号到今天
+      start = new Date(now.getFullYear(), 0, 1);
+      end = new Date(now);
+      end.setHours(23, 59, 59, 999);
       break;
+    default:
+      start = new Date(now);
+      end = new Date(now);
   }
 
   return {
     start: start.toISOString().split('T')[0]!,
-    end: now.toISOString().split('T')[0]!
+    end: end.toISOString().split('T')[0]!
   };
 };
 
 // Helper function to filter ingredients by time range
 const filterIngredientsByTimeRange = (ingredients: Ingredient[], timeRange: { start: string; end: string }) => {
   return ingredients.filter(ingredient => {
-    // 使用created_at作为主要过滤字段（食材添加时间）
+    // 对于统计页面，应该显示在当前时间段内存在的食材
+    // 即食材的创建时间在当前时间段内，且没有被删除
     const createdDate = ingredient.created_at.split('T')[0]!;
     return createdDate >= timeRange.start && createdDate <= timeRange.end;
   });
@@ -184,31 +204,52 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
 
     fetchStats: async () => {
       try {
-        // Calculate stats from current ingredients with real-time status calculation
         const currentIngredients = get().ingredients;
 
-        // 重新计算每个食材的状态，确保基于当前日期
-        const ingredientsWithUpdatedStatus = currentIngredients.map(ingredient => ({
-          ...ingredient,
-          status: ingredient.status === 'used' ? 'used' : calculateStatus(ingredient.expiration_date),
-          freshness_score: ingredient.status === 'used' ? ingredient.freshness_score : calculateFreshnessScore(ingredient.expiration_date),
-        }));
+        // 优化：只在必要时重新计算状态，避免每次都重新计算所有食材
+        const now = new Date();
+        const needsUpdate = currentIngredients.some(ingredient => {
+          if (ingredient.status === 'used') return false; // 已使用的食材不需要更新
+          const expDate = new Date(ingredient.expiration_date);
+          const diffTime = expDate.getTime() - now.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        // 更新ingredients状态为重新计算后的数据
-        set({ ingredients: ingredientsWithUpdatedStatus });
+          // 只有状态可能发生变化的食材才需要重新计算
+          const currentStatus = ingredient.status;
+          let newStatus: 'fresh' | 'near_expiry' | 'expired' = 'fresh';
+          if (diffDays < 0) newStatus = 'expired';
+          else if (diffDays <= 3) newStatus = 'near_expiry';
 
+          return currentStatus !== newStatus;
+        });
+
+        let ingredientsToUse = currentIngredients;
+
+        // 只有在需要时才重新计算状态
+        if (needsUpdate) {
+          ingredientsToUse = currentIngredients.map(ingredient => ({
+            ...ingredient,
+            status: ingredient.status === 'used' ? 'used' : calculateStatus(ingredient.expiration_date),
+            freshness_score: ingredient.status === 'used' ? ingredient.freshness_score : calculateFreshnessScore(ingredient.expiration_date),
+          }));
+
+          // 只有在状态真正变化时才更新ingredients
+          set({ ingredients: ingredientsToUse });
+        }
+
+        // 计算统计数据
         const stats = {
-          total: ingredientsWithUpdatedStatus.length,
-          fresh: ingredientsWithUpdatedStatus.filter(i => i.status === 'fresh').length,
-          near_expiry: ingredientsWithUpdatedStatus.filter(i => i.status === 'near_expiry').length,
-          expired: ingredientsWithUpdatedStatus.filter(i => i.status === 'expired').length,
-          used: ingredientsWithUpdatedStatus.filter(i => i.status === 'used').length,
+          total: ingredientsToUse.length,
+          fresh: ingredientsToUse.filter(i => i.status === 'fresh').length,
+          near_expiry: ingredientsToUse.filter(i => i.status === 'near_expiry').length,
+          expired: ingredientsToUse.filter(i => i.status === 'expired').length,
+          used: ingredientsToUse.filter(i => i.status === 'used').length,
           byCategory: {} as Record<string, number>,
           byLocation: {} as Record<string, number>,
         };
 
         // Calculate by category and location
-        ingredientsWithUpdatedStatus.forEach(ingredient => {
+        ingredientsToUse.forEach(ingredient => {
           stats.byCategory[ingredient.category] = (stats.byCategory[ingredient.category] || 0) + 1;
           stats.byLocation[ingredient.location] = (stats.byLocation[ingredient.location] || 0) + 1;
         });
@@ -521,6 +562,68 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
       set({
         ingredients: updatedSampleIngredients,
         isInitialized: true
+      });
+    },
+
+    // 按周清理已使用的食材
+    cleanupUsedIngredients: async () => {
+      set({ isDeleting: true, error: null });
+      try {
+        // 获取一周前的时间范围
+        const timeRange = getTimeRange('week');
+        const currentIngredients = get().ingredients;
+
+        // 找到一周前标记为已使用的食材
+        const ingredientsToDelete = currentIngredients.filter(ingredient => {
+          // 检查是否为已使用状态
+          if (ingredient.status !== 'used') return false;
+
+          // 检查更新时间是否在一周前
+          const updatedDate = ingredient.updated_at.split('T')[0]!;
+          return updatedDate < timeRange.start;
+        });
+
+        if (ingredientsToDelete.length === 0) {
+          set({ isDeleting: false });
+          return { deletedCount: 0, message: '没有需要清理的已使用食材' };
+        }
+
+        // 删除这些食材
+        const deletedIds = ingredientsToDelete.map(ingredient => ingredient.id);
+        set(state => ({
+          ingredients: state.ingredients.filter(ingredient => !deletedIds.includes(ingredient.id)),
+          isDeleting: false
+        }));
+
+        // 更新统计数据
+        await get().fetchStats();
+
+        // 更新状态监控
+        const updatedIngredients = get().ingredients;
+        statusMonitor.updateIngredients(updatedIngredients);
+
+        return {
+          deletedCount: ingredientsToDelete.length,
+          message: `成功清理了 ${ingredientsToDelete.length} 个已使用的食材`
+        };
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : '清理已使用食材失败',
+          isDeleting: false
+        });
+        return { deletedCount: 0, message: '清理失败' };
+      }
+    },
+
+    // 获取可清理的已使用食材数量
+    getCleanupableUsedIngredients: () => {
+      const timeRange = getTimeRange('week');
+      const currentIngredients = get().ingredients;
+
+      return currentIngredients.filter(ingredient => {
+        if (ingredient.status !== 'used') return false;
+        const updatedDate = ingredient.updated_at.split('T')[0]!;
+        return updatedDate < timeRange.start;
       });
     },
 

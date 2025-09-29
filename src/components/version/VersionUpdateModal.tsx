@@ -1,117 +1,124 @@
 import React from 'react';
 import {
-    Modal,
     View,
     Text,
-    StyleSheet,
+    Modal,
+    TouchableOpacity,
     ScrollView,
+    StyleSheet,
     Alert,
+    Linking,
     Platform,
 } from 'react-native';
-import { Button, Card, Title, Paragraph, Divider } from 'react-native-paper';
-import { COLORS } from '@/utils/constants';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useI18n } from '@/utils/i18n';
 import { VersionInfo } from '@/services/version/versionChecker';
-import { versionChecker } from '@/services/version/versionChecker';
 
 interface VersionUpdateModalProps {
     visible: boolean;
-    versionInfo: VersionInfo;
-    onDismiss: () => void;
+    versionInfo: VersionInfo | null;
     onUpdate: () => void;
+    onDismiss: () => void;
+    isForceUpdate?: boolean;
 }
 
 export const VersionUpdateModal: React.FC<VersionUpdateModalProps> = ({
     visible,
     versionInfo,
-    onDismiss,
     onUpdate,
+    onDismiss,
+    isForceUpdate = false,
 }) => {
+    const { t } = useI18n();
+
     const handleUpdate = async () => {
+        if (!versionInfo) return;
+
         try {
-            await versionChecker.openAppStore(versionInfo.updateUrl);
-            onUpdate();
+            const canOpen = await Linking.canOpenURL(versionInfo.updateUrl);
+            if (canOpen) {
+                await Linking.openURL(versionInfo.updateUrl);
+                onUpdate();
+            } else {
+                Alert.alert(
+                    t('settings.versionUpdate.cannotOpenStore'),
+                    t('settings.versionUpdate.manualUpdateMessage')
+                );
+            }
         } catch (error) {
+            console.error('Failed to open store:', error);
             Alert.alert(
-                '更新失败',
-                '无法打开应用商店，请手动前往应用商店更新应用。',
-                [{ text: '确定' }]
+                t('settings.versionUpdate.updateFailed'),
+                t('settings.versionUpdate.manualUpdateMessage')
             );
         }
     };
 
-    const handleLater = () => {
-        if (versionInfo.isForceUpdate) {
-            Alert.alert(
-                '强制更新',
-                '此版本包含重要更新，必须更新后才能继续使用。',
-                [{ text: '立即更新', onPress: handleUpdate }]
-            );
-        } else {
-            onDismiss();
-        }
-    };
+    if (!visible || !versionInfo) return null;
 
     return (
         <Modal
             visible={visible}
             transparent
             animationType="fade"
-            onRequestClose={versionInfo.isForceUpdate ? undefined : onDismiss}
+            onRequestClose={isForceUpdate ? undefined : onDismiss}
         >
             <View style={styles.overlay}>
-                <Card style={styles.modal}>
-                    <Card.Content style={styles.content}>
-                        <View style={styles.header}>
-                            <Title style={styles.title}>
-                                {versionInfo.isForceUpdate ? '强制更新' : '发现新版本'}
-                            </Title>
-                            <Text style={styles.versionText}>
-                                当前版本: {versionInfo.currentVersion} → 最新版本: {versionInfo.latestVersion}
+                <View style={styles.modalContainer}>
+                    <View style={styles.header}>
+                        <MaterialCommunityIcons
+                            name="update"
+                            size={24}
+                            color="#10B981"
+                        />
+                        <Text style={styles.title}>
+                            {isForceUpdate ? t('settings.versionUpdate.forceUpdateTitle') : t('settings.versionUpdate.updateTitle')}
+                        </Text>
+                    </View>
+
+                    <ScrollView style={styles.content}>
+                        <View style={styles.versionInfo}>
+                            <Text style={styles.currentVersion}>
+                                {t('settings.versionUpdate.currentVersion')}: {versionInfo.currentVersion}
+                            </Text>
+                            <Text style={styles.latestVersion}>
+                                {t('settings.versionUpdate.latestVersion')}: {versionInfo.latestVersion}
                             </Text>
                         </View>
-
-                        <Divider style={styles.divider} />
 
                         {versionInfo.releaseNotes && (
-                            <View style={styles.releaseNotesContainer}>
-                                <Text style={styles.releaseNotesTitle}>更新内容:</Text>
-                                <ScrollView style={styles.releaseNotesScroll}>
-                                    <Text style={styles.releaseNotesText}>
-                                        {versionInfo.releaseNotes}
-                                    </Text>
-                                </ScrollView>
+                            <View style={styles.releaseNotes}>
+                                <Text style={styles.releaseNotesTitle}>
+                                    {t('settings.versionUpdate.releaseNotes')}
+                                </Text>
+                                <Text style={styles.releaseNotesText}>
+                                    {versionInfo.releaseNotes}
+                                </Text>
                             </View>
                         )}
+                    </ScrollView>
 
-                        <View style={styles.buttonContainer}>
-                            {!versionInfo.isForceUpdate && (
-                                <Button
-                                    mode="outlined"
-                                    onPress={handleLater}
-                                    style={[styles.button, styles.laterButton]}
-                                    labelStyle={styles.laterButtonText}
-                                >
-                                    {t('common.cancel')}
-                                </Button>
-                            )}
-
-                            <Button
-                                mode="contained"
-                                onPress={handleUpdate}
-                                style={[styles.button, styles.updateButton]}
-                                labelStyle={styles.updateButtonText}
+                    <View style={styles.actions}>
+                        {!isForceUpdate && (
+                            <TouchableOpacity
+                                style={[styles.button, styles.dismissButton]}
+                                onPress={onDismiss}
                             >
-                                {t('common.confirm')}
-                            </Button>
-                        </View>
-
-                        {versionInfo.isForceUpdate && (
-                            <Text style={styles.forceUpdateNote}>
-                                {t('settings.forceUpdateNote')}
-                            </Text>
+                                <Text style={styles.dismissButtonText}>
+                                    {t('settings.versionUpdate.later')}
+                                </Text>
+                            </TouchableOpacity>
                         )}
-                    </Card.Content>
-                </Card>
+                        <TouchableOpacity
+                            style={[styles.button, styles.updateButton]}
+                            onPress={handleUpdate}
+                        >
+                            <Text style={styles.updateButtonText}>
+                                {t('settings.versionUpdate.updateNow')}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
         </Modal>
     );
@@ -125,90 +132,94 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 20,
     },
-    modal: {
+    modalContainer: {
+        backgroundColor: 'white',
+        borderRadius: 16,
         width: '100%',
         maxWidth: 400,
         maxHeight: '80%',
-        borderRadius: 12,
-        elevation: 8,
         shadowColor: '#000',
         shadowOffset: {
             width: 0,
-            height: 4,
+            height: 2,
         },
         shadowOpacity: 0.25,
-        shadowRadius: 8,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+    },
+    title: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#1F2937',
+        marginLeft: 12,
     },
     content: {
         padding: 20,
     },
-    header: {
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    title: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: COLORS.primary,
-        textAlign: 'center',
-        marginBottom: 8,
-    },
-    versionText: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-        textAlign: 'center',
-    },
-    divider: {
-        marginVertical: 16,
-        backgroundColor: COLORS.border,
-    },
-    releaseNotesContainer: {
+    versionInfo: {
         marginBottom: 20,
+    },
+    currentVersion: {
+        fontSize: 14,
+        color: '#6B7280',
+        marginBottom: 4,
+    },
+    latestVersion: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#10B981',
+    },
+    releaseNotes: {
+        marginTop: 16,
     },
     releaseNotesTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: COLORS.text,
+        color: '#1F2937',
         marginBottom: 8,
-    },
-    releaseNotesScroll: {
-        maxHeight: 150,
-        backgroundColor: COLORS.backgroundSecondary,
-        borderRadius: 8,
-        padding: 12,
     },
     releaseNotesText: {
         fontSize: 14,
+        color: '#4B5563',
         lineHeight: 20,
-        color: COLORS.textSecondary,
     },
-    buttonContainer: {
+    actions: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        padding: 20,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E7EB',
         gap: 12,
     },
     button: {
         flex: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
         borderRadius: 8,
+        alignItems: 'center',
     },
-    laterButton: {
-        borderColor: COLORS.border,
+    dismissButton: {
+        backgroundColor: '#F3F4F6',
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
     },
-    laterButtonText: {
-        color: COLORS.textSecondary,
+    dismissButtonText: {
+        color: '#374151',
+        fontSize: 16,
+        fontWeight: '500',
     },
     updateButton: {
-        backgroundColor: COLORS.primary,
+        backgroundColor: '#10B981',
     },
     updateButtonText: {
-        color: '#fff',
+        color: 'white',
+        fontSize: 16,
         fontWeight: '600',
-    },
-    forceUpdateNote: {
-        fontSize: 12,
-        color: COLORS.error,
-        textAlign: 'center',
-        marginTop: 12,
-        fontStyle: 'italic',
     },
 });

@@ -1,15 +1,14 @@
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import * as Application from 'expo-application';
-import Constants from 'expo-constants';
-import { VERSION_CHECK_CONFIG, shouldEnableVersionCheck } from './config';
 
 export interface VersionInfo {
     currentVersion: string;
     latestVersion: string;
     hasUpdate: boolean;
-    updateUrl?: string;
-    releaseNotes?: string;
-    isForceUpdate?: boolean;
+    updateUrl: string;
+    releaseNotes: string;
+    isForceUpdate: boolean;
 }
 
 export interface VersionCheckResult {
@@ -20,8 +19,6 @@ export interface VersionCheckResult {
 
 class VersionChecker {
     private static instance: VersionChecker;
-    private lastCheckTime: number = 0;
-    private readonly CHECK_INTERVAL = VERSION_CHECK_CONFIG.CHECK_INTERVAL;
 
     static getInstance(): VersionChecker {
         if (!VersionChecker.instance) {
@@ -31,8 +28,7 @@ class VersionChecker {
     }
 
     /**
-     * 获取当前应用版本信息
-     * 优先从 app.json 获取，如果没有则从应用商店获取
+     * 获取当前应用版本号
      */
     getCurrentVersion(): string {
         // 优先从 Constants.expoConfig 获取版本号（来自 app.json）
@@ -41,23 +37,27 @@ class VersionChecker {
         }
 
         // 降级到从应用商店获取
-        return Application.nativeApplicationVersion || '1.0.0';
+        return Application.nativeApplicationVersion || '1.1.0';
     }
 
     /**
      * 获取当前构建号
-     * 优先从 app.json 获取，如果没有则从应用商店获取
      */
     getCurrentBuildNumber(): string {
-        // 优先从 Constants.expoConfig 获取构建号（来自 app.json）
-        if (Platform.OS === 'ios' && Constants.expoConfig?.ios?.buildNumber) {
-            return Constants.expoConfig.ios.buildNumber;
-        } else if (Platform.OS === 'android' && Constants.expoConfig?.android?.versionCode) {
-            return Constants.expoConfig.android.versionCode.toString();
+        if (Platform.OS === 'ios') {
+            return Application.nativeBuildVersion || '7';
+        } else {
+            return Application.nativeBuildVersion || '6';
         }
+    }
 
-        // 降级到从应用商店获取
-        return Application.nativeBuildVersion || '1';
+    /**
+     * 获取完整的版本信息（版本号 + 构建号）
+     */
+    getFullVersionInfo(): string {
+        const version = this.getCurrentVersion();
+        const buildNumber = this.getCurrentBuildNumber();
+        return `${version} (${buildNumber})`;
     }
 
     /**
@@ -65,11 +65,6 @@ class VersionChecker {
      * 这里使用模拟数据，实际项目中应该调用你的API或应用商店API
      */
     async checkForUpdates(): Promise<VersionCheckResult> {
-        // 检查是否应该启用版本检查
-        if (!shouldEnableVersionCheck()) {
-            return { hasUpdate: false };
-        }
-
         try {
             const currentVersion = this.getCurrentVersion();
             const currentBuild = this.getCurrentBuildNumber();
@@ -158,9 +153,9 @@ class VersionChecker {
      */
     private getUpdateUrl(): string {
         if (Platform.OS === 'ios') {
-            return VERSION_CHECK_CONFIG.STORE_LINKS.ios;
+            return 'https://apps.apple.com/app/6752112552';
         } else {
-            return VERSION_CHECK_CONFIG.STORE_LINKS.android;
+            return 'https://play.google.com/store/apps/details?id=com.fridgy.app';
         }
     }
 
@@ -189,36 +184,6 @@ class VersionChecker {
         }
 
         return false;
-    }
-
-    /**
-     * 检查是否应该进行版本检查
-     * 避免频繁检查，只在间隔时间后检查
-     */
-    shouldCheckForUpdates(): boolean {
-        const now = Date.now();
-        return now - this.lastCheckTime > this.CHECK_INTERVAL;
-    }
-
-    /**
-     * 更新最后检查时间
-     */
-    updateLastCheckTime(): void {
-        this.lastCheckTime = Date.now();
-    }
-
-    /**
-     * 打开应用商店进行更新
-     */
-    async openAppStore(updateUrl?: string): Promise<void> {
-        try {
-            const url = updateUrl || this.getUpdateUrl();
-            const Linking = (await import('expo-linking')).default;
-            await Linking.openURL(url);
-        } catch (error) {
-            console.error('Failed to open app store:', error);
-            throw new Error('无法打开应用商店');
-        }
     }
 }
 

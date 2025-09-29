@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Platform,
+  Animated,
 } from 'react-native';
 import { TextInput, Button } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -58,6 +59,11 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [aiSuggestion, setAiSuggestion] = useState<LocationStorageAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // 动画状态
+  const [rippleScale] = useState(new Animated.Value(0));
+  const [rippleOpacity] = useState(new Animated.Value(0));
+  const [overlayOpacity] = useState(new Animated.Value(0));
+
   // 使用语音识别Hook
   const { isRecording, isProcessing, startRecording, stopRecording, lastResult } = useSpeechRecognition();
 
@@ -67,6 +73,66 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       handleInputChange('name', lastResult);
     }
   }, [lastResult]);
+
+  // 开始录音动画
+  const startRecordingAnimation = () => {
+    // 页面变暗
+    Animated.timing(overlayOpacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+
+    // 水波纹效果
+    rippleScale.setValue(0);
+    rippleOpacity.setValue(1);
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(rippleScale, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(rippleOpacity, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start(() => {
+      // 循环播放水波纹效果
+      if (isRecording) {
+        startRecordingAnimation();
+      }
+    });
+  };
+
+  // 停止录音动画
+  const stopRecordingAnimation = () => {
+    // 恢复页面亮度
+    Animated.timing(overlayOpacity, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+
+    // 停止水波纹
+    rippleScale.setValue(0);
+    rippleOpacity.setValue(0);
+  };
+
+  // 处理录音开始
+  const handleStartRecording = () => {
+    startRecording();
+    startRecordingAnimation();
+  };
+
+  // 处理录音结束
+  const handleStopRecording = () => {
+    stopRecording();
+    stopRecordingAnimation();
+  };
 
   // Get frequently used ingredients based on recent additions
   const getFrequentIngredients = () => {
@@ -201,6 +267,36 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       // Handle Android date selection
       if (event.type === 'set' && selectedDate) {
         const dateString = selectedDate.toISOString().split('T')[0] || '';
+
+        // Validate date logic
+        if (field === 'expiration_date' && formData.purchase_date) {
+          const purchaseDate = new Date(formData.purchase_date);
+          const expirationDate = new Date(dateString);
+
+          if (expirationDate <= purchaseDate) {
+            Alert.alert(
+              t('forms.dateValidationError') || 'Date Validation Error',
+              t('forms.expirationDateMustBeAfterPurchase') || 'Expiration date must be after purchase date.',
+              [{ text: t('common.ok') || 'OK' }]
+            );
+            return;
+          }
+        }
+
+        if (field === 'purchase_date' && formData.expiration_date) {
+          const purchaseDate = new Date(dateString);
+          const expirationDate = new Date(formData.expiration_date);
+
+          if (expirationDate <= purchaseDate) {
+            Alert.alert(
+              t('forms.dateValidationError') || 'Date Validation Error',
+              t('forms.expirationDateMustBeAfterPurchase') || 'Expiration date must be after purchase date.',
+              [{ text: t('common.ok') || 'OK' }]
+            );
+            return;
+          }
+        }
+
         setFormData(prev => ({
           ...prev,
           [field]: dateString
@@ -210,6 +306,36 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       // iOS - just update the date, keep picker open
       if (selectedDate) {
         const dateString = selectedDate.toISOString().split('T')[0] || '';
+
+        // Validate date logic for iOS
+        if (field === 'expiration_date' && formData.purchase_date) {
+          const purchaseDate = new Date(formData.purchase_date);
+          const expirationDate = new Date(dateString);
+
+          if (expirationDate <= purchaseDate) {
+            Alert.alert(
+              t('forms.dateValidationError') || 'Date Validation Error',
+              t('forms.expirationDateMustBeAfterPurchase') || 'Expiration date must be after purchase date.',
+              [{ text: t('common.ok') || 'OK' }]
+            );
+            return;
+          }
+        }
+
+        if (field === 'purchase_date' && formData.expiration_date) {
+          const purchaseDate = new Date(dateString);
+          const expirationDate = new Date(formData.expiration_date);
+
+          if (expirationDate <= purchaseDate) {
+            Alert.alert(
+              t('forms.dateValidationError') || 'Date Validation Error',
+              t('forms.expirationDateMustBeAfterPurchase') || 'Expiration date must be after purchase date.',
+              [{ text: t('common.ok') || 'OK' }]
+            );
+            return;
+          }
+        }
+
         setFormData(prev => ({
           ...prev,
           [field]: dateString
@@ -414,7 +540,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       return (
         <View style={styles.aiSuggestionCard}>
           <View style={styles.aiSuggestionHeader}>
-            <Text style={styles.aiSuggestionTitle}>🤖 AI分析中...</Text>
+            <Text style={styles.aiSuggestionTitle}>AI分析中...</Text>
           </View>
           <Text style={styles.aiSuggestionText}>正在分析存储期限...</Text>
         </View>
@@ -425,7 +551,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       return (
         <View style={styles.aiSuggestionCard}>
           <View style={styles.aiSuggestionHeader}>
-            <Text style={styles.aiSuggestionTitle}>🤖 AI建议</Text>
+            <Text style={styles.aiSuggestionTitle}>AI建议</Text>
             <TouchableOpacity onPress={() => setAiSuggestion(null)} style={styles.aiCloseButton}>
               <Text style={styles.aiCloseButtonText}>✕</Text>
             </TouchableOpacity>
@@ -488,6 +614,18 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       onRequestClose={handleCancel}
     >
       <View style={styles.container}>
+        {/* 录音时的遮罩层 */}
+        {isRecording && (
+          <Animated.View
+            style={[
+              styles.recordingOverlay,
+              {
+                opacity: overlayOpacity,
+              },
+            ]}
+          />
+        )}
+
         <View style={styles.header}>
           <Text style={styles.title}>{t('dashboard.addIngredient')}</Text>
           <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
@@ -516,8 +654,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 />
                 <TouchableOpacity
                   style={[styles.voiceButton, isRecording && styles.voiceButtonRecording]}
-                  onPressIn={startRecording}
-                  onPressOut={stopRecording}
+                  onPressIn={handleStartRecording}
+                  onPressOut={handleStopRecording}
                   activeOpacity={0.7}
                 >
                   <MaterialCommunityIcons
@@ -528,6 +666,18 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                     size={20}
                     color={isRecording || isProcessing ? "#FFFFFF" : COLORS.primary}
                   />
+                  {/* 水波纹效果 */}
+                  {isRecording && (
+                    <Animated.View
+                      style={[
+                        styles.rippleEffect,
+                        {
+                          transform: [{ scale: rippleScale }],
+                          opacity: rippleOpacity,
+                        },
+                      ]}
+                    />
+                  )}
                 </TouchableOpacity>
               </View>
               {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
@@ -617,9 +767,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   closeButton: {
-    padding: 12,
+    width: 44,
+    height: 44,
     backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -899,5 +1052,22 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.error,
     borderColor: COLORS.error,
     transform: [{ scale: 1.1 }],
+  },
+  rippleEffect: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.error,
+    opacity: 0.3,
+  },
+  recordingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 1000,
   },
 });

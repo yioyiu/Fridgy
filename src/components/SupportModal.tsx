@@ -31,7 +31,7 @@ export const SupportModal: React.FC<SupportModalProps> = ({
     const subject = encodeURIComponent('Bug Report');
     const body = encodeURIComponent('Please describe the bug you encountered:\n\nSteps to reproduce:\n1. \n2. \n3. \n\nExpected behavior:\n\nActual behavior:\n\nDevice info:\n- OS: \n- App version: ');
     const url = `mailto:${email}?subject=${subject}&body=${body}`;
-    
+
     Linking.canOpenURL(url).then(supported => {
       if (supported) {
         Linking.openURL(url);
@@ -46,7 +46,7 @@ export const SupportModal: React.FC<SupportModalProps> = ({
     const subject = encodeURIComponent('Feature Request');
     const body = encodeURIComponent('Please describe the feature you would like to see:\n\nFeature description:\n\nWhy would this be useful:\n\nAdditional notes:');
     const url = `mailto:${email}?subject=${subject}&body=${body}`;
-    
+
     Linking.canOpenURL(url).then(supported => {
       if (supported) {
         Linking.openURL(url);
@@ -61,7 +61,7 @@ export const SupportModal: React.FC<SupportModalProps> = ({
     const subject = encodeURIComponent('General Feedback');
     const body = encodeURIComponent('Please share your thoughts and suggestions:');
     const url = `mailto:${email}?subject=${subject}&body=${body}`;
-    
+
     Linking.canOpenURL(url).then(supported => {
       if (supported) {
         Linking.openURL(url);
@@ -81,6 +81,21 @@ export const SupportModal: React.FC<SupportModalProps> = ({
     { q: t('support.faqQ3'), a: t('support.faqA3') },
     { q: t('support.faqQ4'), a: t('support.faqA4') },
     { q: t('support.faqQ5'), a: t('support.faqA5') },
+    { q: t('support.faqQ6'), a: t('support.faqA6') },
+    { q: t('support.faqQ7'), a: t('support.faqA7') },
+    { q: t('support.faqQ8'), a: t('support.faqA8') },
+    { q: t('support.faqQ9'), a: t('support.faqA9') },
+    { q: t('support.faqQ10'), a: t('support.faqA10') },
+    { q: t('support.faqQ11'), a: t('support.faqA11') },
+    { q: t('support.faqQ12'), a: t('support.faqA12') },
+    { q: t('support.faqQ13'), a: t('support.faqA13') },
+    { q: t('support.faqQ14'), a: t('support.faqA14') },
+    { q: t('support.faqQ15'), a: t('support.faqA15') },
+    { q: t('support.faqQ16'), a: t('support.faqA16') },
+    { q: t('support.faqQ17'), a: t('support.faqA17') },
+    { q: t('support.faqQ18'), a: t('support.faqA18') },
+    { q: t('support.faqQ19'), a: t('support.faqA19') },
+    { q: t('support.faqQ20'), a: t('support.faqA20') },
   ];
 
   const troubleshootingItems = [
@@ -104,7 +119,7 @@ export const SupportModal: React.FC<SupportModalProps> = ({
             <MaterialCommunityIcons name="close" size={24} color={COLORS.text} />
           </TouchableOpacity>
         </View>
-        
+
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* FAQ Section */}
           <View style={styles.section}>
@@ -134,7 +149,7 @@ export const SupportModal: React.FC<SupportModalProps> = ({
           {/* Contact Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('support.contactUs')}</Text>
-            
+
             <TouchableOpacity style={styles.contactItem} onPress={handleBugReport}>
               <MaterialCommunityIcons name="bug" size={24} color={COLORS.error} />
               <View style={styles.contactItemContent}>
@@ -169,7 +184,7 @@ export const SupportModal: React.FC<SupportModalProps> = ({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('support.troubleshooting')}</Text>
             <Text style={styles.sectionSubtitle}>{t('support.troubleshootingText')}</Text>
-            
+
             {troubleshootingItems.map((item, index) => (
               <View key={index} style={styles.troubleshootingItem}>
                 <View style={styles.troubleshootingHeader}>
@@ -187,7 +202,7 @@ export const SupportModal: React.FC<SupportModalProps> = ({
           {/* Resources Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('support.resources')}</Text>
-            
+
             <View style={styles.resourceItem}>
               <MaterialCommunityIcons name="book-open" size={24} color={COLORS.primary} />
               <View style={styles.resourceContent}>

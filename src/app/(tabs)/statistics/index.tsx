@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Card, Title, Paragraph, Chip } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BarChart } from 'react-native-chart-kit';
 import { COLORS } from '@/utils/constants';
 import { useI18n } from '@/utils/i18n';
 import { useIngredientsStore } from '@/store/ingredients/slice';
@@ -39,21 +40,39 @@ export default function StatisticsScreen() {
   const [nearExpiryIngredients, setNearExpiryIngredients] = useState<string[]>([]);
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<'fresh' | 'near_expiry' | 'expired' | 'used'>('fresh');
+  const [freshnessScoreModalVisible, setFreshnessScoreModalVisible] = useState(false);
 
+  // 初始化数据
   useEffect(() => {
     fetchStats();
-    fetchTimeFilteredStats(); // 初始化时也获取时间过滤的统计数据
+    fetchTimeFilteredStats();
   }, []);
 
-  // 获取即将过期的食材名称
+  // 监听ingredients变化，实时更新统计数据（优化版本）
+  useEffect(() => {
+    if (ingredients) {
+      // 使用防抖避免频繁更新
+      const timeoutId = setTimeout(() => {
+        fetchStats();
+        fetchTimeFilteredStats();
+      }, 500); // 500ms防抖，减少更新频率
+
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined; // 确保所有代码路径都有返回值
+  }, [ingredients.length]); // 只监听数组长度变化，避免无限循环
+
+  // 获取即将过期的食材名称（优化版本）
   useEffect(() => {
     if (ingredients && ingredients.length > 0) {
       const nearExpiryItems = ingredients
         .filter(item => item.status === 'near_expiry')
         .map(item => item.name);
       setNearExpiryIngredients(nearExpiryItems);
+    } else {
+      setNearExpiryIngredients([]);
     }
-  }, [ingredients]);
+  }, [ingredients.length]); // 只监听数组长度变化
 
   const handleActionRequiredPress = () => {
     if (nearExpiryIngredients.length > 0) {
@@ -66,50 +85,66 @@ export default function StatisticsScreen() {
     setStatusModalVisible(true);
   };
 
-  const getStatusItems = (status: 'fresh' | 'near_expiry' | 'expired' | 'used') => {
-    // 获取当前时间范围
-    const getTimeRange = (timeframe: 'week' | 'month' | 'quarter' | 'year') => {
-      const now = new Date();
-      const start = new Date();
-
-      switch (timeframe) {
-        case 'week':
-          start.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          start.setMonth(now.getMonth() - 1);
-          break;
-        case 'quarter':
-          start.setMonth(now.getMonth() - 3);
-          break;
-        case 'year':
-          start.setFullYear(now.getFullYear() - 1);
-          break;
-      }
-
-      return {
-        start: start.toISOString().split('T')[0]!,
-        end: now.toISOString().split('T')[0]!
-      };
-    };
-
-    // 过滤食材按时间范围
-    const filterIngredientsByTimeRange = (ingredients: any[], timeRange: { start: string; end: string }) => {
-      return ingredients.filter(ingredient => {
-        // 使用created_at作为主要过滤字段（食材添加时间）
-        const createdDate = ingredient.created_at.split('T')[0]!;
-        return createdDate >= timeRange.start && createdDate <= timeRange.end;
-      });
-    };
-
-    // 获取当前时间范围
-    const timeRange = getTimeRange(selectedTimeframe);
-
-    // 先按时间范围过滤，再按状态过滤
-    const timeFilteredItems = filterIngredientsByTimeRange(ingredients, timeRange);
-
-    return timeFilteredItems.filter(item => item.status === status);
+  const handleFreshnessScorePress = () => {
+    setFreshnessScoreModalVisible(true);
   };
+
+  // 优化：使用useMemo缓存时间范围计算
+  const timeRange = useMemo(() => {
+    const now = new Date();
+    let start: Date;
+    let end: Date;
+
+    switch (selectedTimeframe) {
+      case 'week':
+        // 本周：从本周一开始到今天
+        start = new Date(now);
+        start.setDate(now.getDate() - now.getDay() + 1); // 本周一
+        start.setHours(0, 0, 0, 0);
+        end = new Date(now);
+        end.setHours(23, 59, 59, 999);
+        break;
+      case 'month':
+        // 本月：从本月1号到今天
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now);
+        end.setHours(23, 59, 59, 999);
+        break;
+      case 'quarter':
+        // 本季度：从本季度第一个月开始到今天
+        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+        start = new Date(now.getFullYear(), quarterStartMonth, 1);
+        end = new Date(now);
+        end.setHours(23, 59, 59, 999);
+        break;
+      case 'year':
+        // 本年：从今年1月1号到今天
+        start = new Date(now.getFullYear(), 0, 1);
+        end = new Date(now);
+        end.setHours(23, 59, 59, 999);
+        break;
+      default:
+        start = new Date(now);
+        end = new Date(now);
+    }
+
+    return {
+      start: start.toISOString().split('T')[0]!,
+      end: end.toISOString().split('T')[0]!
+    };
+  }, [selectedTimeframe]);
+
+  // 优化：使用useMemo缓存过滤后的食材
+  const timeFilteredIngredients = useMemo(() => {
+    return ingredients.filter(ingredient => {
+      const createdDate = ingredient.created_at.split('T')[0]!;
+      return createdDate >= timeRange.start && createdDate <= timeRange.end;
+    });
+  }, [ingredients, timeRange]);
+
+  const getStatusItems = useCallback((status: 'fresh' | 'near_expiry' | 'expired' | 'used') => {
+    return timeFilteredIngredients.filter(item => item.status === status);
+  }, [timeFilteredIngredients]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -118,30 +153,145 @@ export default function StatisticsScreen() {
     setRefreshing(false);
   };
 
-  // 获取当前显示的统计数据（基于时间过滤）
-  const getCurrentStats = () => {
+  // 优化：使用useMemo缓存当前统计数据
+  const currentStats = useMemo(() => {
     return timeFilteredStats || stats;
+  }, [timeFilteredStats, stats]);
+
+  // 获取当前所有食材的统计数据（不基于时间过滤）
+  const getAllIngredientsStats = () => {
+    return stats;
   };
+
+  // 优化：使用useMemo缓存新鲜度趋势数据
+  const freshnessTrendData = useMemo(() => {
+    const now = new Date();
+    const periods = [];
+
+    // 根据选择的时间段获取过去5个周期的数据
+    for (let i = 4; i >= 0; i--) {
+      let periodStart: Date;
+      let periodEnd: Date;
+      let dateLabel: string;
+
+      switch (selectedTimeframe) {
+        case 'week':
+          // 获取过去5周的数据，本周从周一到今天
+          const weekStart = new Date(now);
+          const daysFromMonday = (now.getDay() + 6) % 7;
+          weekStart.setDate(now.getDate() - daysFromMonday - (7 * i));
+          weekStart.setHours(0, 0, 0, 0);
+          periodStart = weekStart;
+
+          if (i === 0) {
+            // 本周：从周一到今天
+            periodEnd = new Date(now);
+            periodEnd.setHours(23, 59, 59, 999);
+          } else {
+            // 过去几周：完整的周（周一到周日）
+            periodEnd = new Date(weekStart);
+            periodEnd.setDate(weekStart.getDate() + 6);
+            periodEnd.setHours(23, 59, 59, 999);
+          }
+
+          const month = weekStart.getMonth() + 1;
+          const day = weekStart.getDate();
+          dateLabel = `${month}.${day}`;
+          break;
+
+        case 'month':
+          // 获取过去5个月的数据
+          const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          monthStart.setHours(0, 0, 0, 0);
+          periodStart = monthStart;
+
+          periodEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+          periodEnd.setHours(23, 59, 59, 999);
+
+          dateLabel = `${monthStart.getMonth() + 1}月`;
+          break;
+
+        case 'quarter':
+          // 获取过去5个季度的数据
+          const quarterStartMonth = Math.floor((now.getMonth() - (i * 3)) / 3) * 3;
+          const quarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
+          quarterStart.setHours(0, 0, 0, 0);
+          periodStart = quarterStart;
+
+          periodEnd = new Date(now.getFullYear(), quarterStartMonth + 3, 0);
+          periodEnd.setHours(23, 59, 59, 999);
+
+          const quarterNum = Math.floor(quarterStartMonth / 3) + 1;
+          dateLabel = `Q${quarterNum}`;
+          break;
+
+        case 'year':
+          // 获取过去5年的数据
+          const yearStart = new Date(now.getFullYear() - i, 0, 1);
+          yearStart.setHours(0, 0, 0, 0);
+          periodStart = yearStart;
+
+          periodEnd = new Date(now.getFullYear() - i, 11, 31);
+          periodEnd.setHours(23, 59, 59, 999);
+
+          dateLabel = `${yearStart.getFullYear()}年`;
+          break;
+
+        default:
+          periodStart = new Date();
+          periodEnd = new Date();
+          dateLabel = '';
+      }
+
+      // 过滤该周期的食材
+      const periodIngredients = ingredients.filter(ingredient => {
+        const createdDate = new Date(ingredient.created_at);
+        return createdDate >= periodStart && createdDate <= periodEnd;
+      });
+
+      // 计算该周期的新鲜度评分
+      const periodStats = {
+        fresh: periodIngredients.filter(i => i.status === 'fresh').length,
+        near_expiry: periodIngredients.filter(i => i.status === 'near_expiry').length,
+        expired: periodIngredients.filter(i => i.status === 'expired').length,
+        used: periodIngredients.filter(i => i.status === 'used').length,
+        total: periodIngredients.length
+      };
+
+      // 当该周期没有物品时，显示满分（100分）
+      const freshnessScore = periodStats.total > 0
+        ? ((periodStats.fresh * 1.0 + periodStats.near_expiry * 0.5 + periodStats.expired * 0.0 + periodStats.used * 0.8) / periodStats.total) * 100
+        : 100; // 没有物品时显示满分，表示管理完美
+
+      periods.push({
+        period: dateLabel,
+        score: Math.round(freshnessScore),
+        date: periodStart.toISOString().split('T')[0]!
+      });
+    }
+
+    return periods;
+  }, [ingredients, selectedTimeframe]);
 
   // Calculate additional stats - Category distribution removed
 
   const getLocationDistribution = () => {
-    const currentStats = getCurrentStats();
-    if (!currentStats?.byLocation) return [];
-    return Object.entries(currentStats.byLocation)
+    const allStats = getAllIngredientsStats();
+    if (!allStats?.byLocation) return [];
+    return Object.entries(allStats.byLocation)
       .map(([location, count]) => ({ location, count }))
       .sort((a, b) => b.count - a.count);
   };
 
   const getWastePercentage = () => {
-    const currentStats = getCurrentStats();
-    if (!currentStats?.total || currentStats.total === 0) return 0;
-    return ((currentStats.expired + currentStats.used) / currentStats.total) * 100;
+    const allStats = getAllIngredientsStats();
+    if (!allStats?.total || allStats.total === 0) return 0;
+    // 只有过期的食材才算浪费，已使用的食材不算浪费
+    return (allStats.expired / allStats.total) * 100;
   };
 
   const getFreshnessScore = () => {
-    const currentStats = getCurrentStats();
-    if (!currentStats?.total || currentStats.total === 0) return 0;
+    if (!currentStats?.total || currentStats.total === 0) return 100; // 没有食材时显示满分，表示管理完美
     const freshWeight = currentStats.fresh * 1;
     const nearExpiryWeight = currentStats.near_expiry * 0.5;
     const expiredWeight = currentStats.expired * 0;
@@ -244,7 +394,7 @@ export default function StatisticsScreen() {
     title: string;
     data: Array<{ location: string; count: number }>;
   }) => {
-    const currentStats = getCurrentStats();
+    const allStats = getAllIngredientsStats();
 
     return (
       <Card style={styles.distributionCard}>
@@ -252,7 +402,7 @@ export default function StatisticsScreen() {
           <Text style={styles.distributionTitle}>{title}</Text>
           {data.map((item, index) => {
             const name = item.location;
-            const percentage = currentStats?.total ? (item.count / currentStats.total) * 100 : 0;
+            const percentage = allStats?.total ? (item.count / allStats.total) * 100 : 0;
 
             return (
               <View key={index} style={styles.distributionItem}>
@@ -332,7 +482,7 @@ export default function StatisticsScreen() {
         ].map((timeframe) => (
           <Chip
             key={timeframe.key}
-            selected={selectedTimeframe === timeframe.key}
+            selected={false}
             onPress={() => setTimeframe(timeframe.key as 'week' | 'month' | 'quarter' | 'year')}
             style={[
               styles.timeframeChip,
@@ -380,6 +530,56 @@ export default function StatisticsScreen() {
           <SeasonalFruitsCard onRefresh={handleRefresh} />
         </View>
 
+        {/* Weekly Freshness Chart */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('statistics.freshnessTrend')}</Text>
+          <Card style={styles.chartCard}>
+            <Card.Content style={styles.chartCardContent}>
+              <BarChart
+                data={{
+                  labels: freshnessTrendData.map(period => period.period),
+                  datasets: [
+                    {
+                      data: freshnessTrendData.map(period => period.score),
+                    },
+                  ],
+                }}
+                width={Dimensions.get('window').width - 64}
+                height={220}
+                yAxisLabel=""
+                yAxisSuffix="%"
+                chartConfig={{
+                  backgroundColor: '#FFFFFF',
+                  backgroundGradientFrom: '#FFFFFF',
+                  backgroundGradientTo: '#FFFFFF',
+                  decimalPlaces: 0,
+                  color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // COLORS.primary
+                  labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`, // COLORS.textSecondary
+                  style: {
+                    borderRadius: 16,
+                  },
+                  propsForDots: {
+                    r: '6',
+                    strokeWidth: '2',
+                    stroke: COLORS.primary,
+                  },
+                  barPercentage: 0.6,
+                }}
+                style={{
+                  marginVertical: 8,
+                  borderRadius: 16,
+                }}
+                showValuesOnTopOfBars={true}
+                fromZero={true}
+                withInnerLines={false}
+                withVerticalLabels={true}
+                withHorizontalLabels={true}
+                segments={4}
+              />
+            </Card.Content>
+          </Card>
+        </View>
+
         <TimeframeSelector />
 
         {/* Key Metrics */}
@@ -388,7 +588,7 @@ export default function StatisticsScreen() {
           <View style={styles.statsGrid}>
             <StatCard
               title={t('statistics.totalItems')}
-              value={getCurrentStats()?.total || 0}
+              value={currentStats?.total || 0}
               icon="food-apple"
               color={COLORS.primary}
               subtitle={t('statistics.inInventory')}
@@ -400,6 +600,7 @@ export default function StatisticsScreen() {
               color={COLORS.fresh}
               subtitle={t('statistics.overallQuality')}
               trend="+5%"
+              onPress={handleFreshnessScorePress}
             />
           </View>
         </View>
@@ -411,7 +612,7 @@ export default function StatisticsScreen() {
             <View style={styles.statusRow}>
               <StatCard
                 title={t('dashboard.fresh')}
-                value={getCurrentStats()?.fresh || 0}
+                value={currentStats?.fresh || 0}
                 icon="check-circle"
                 color={COLORS.fresh}
                 subtitle={t('statistics.readyToUse')}
@@ -419,7 +620,7 @@ export default function StatisticsScreen() {
               />
               <StatCard
                 title={t('dashboard.nearExpiry')}
-                value={getCurrentStats()?.near_expiry || 0}
+                value={currentStats?.near_expiry || 0}
                 icon="alert-circle"
                 color={COLORS.nearExpiry}
                 subtitle={t('statistics.useSoon')}
@@ -429,7 +630,7 @@ export default function StatisticsScreen() {
             <View style={styles.statusRow}>
               <StatCard
                 title={t('dashboard.expired')}
-                value={getCurrentStats()?.expired || 0}
+                value={currentStats?.expired || 0}
                 icon="close-circle"
                 color={COLORS.expired}
                 subtitle={t('statistics.needsDisposal')}
@@ -437,7 +638,7 @@ export default function StatisticsScreen() {
               />
               <StatCard
                 title={t('dashboard.used')}
-                value={getCurrentStats()?.used || 0}
+                value={currentStats?.used || 0}
                 icon="check"
                 color={COLORS.used}
                 subtitle={t('statistics.consumed')}
@@ -453,32 +654,25 @@ export default function StatisticsScreen() {
 
           <ProgressCard
             title={t('dashboard.fresh')}
-            current={getCurrentStats()?.fresh || 0}
-            total={getCurrentStats()?.total || 0}
+            current={currentStats?.fresh || 0}
+            total={currentStats?.total || 0}
             color={COLORS.fresh}
           />
 
           <ProgressCard
             title={t('dashboard.nearExpiry')}
-            current={getCurrentStats()?.near_expiry || 0}
-            total={getCurrentStats()?.total || 0}
+            current={currentStats?.near_expiry || 0}
+            total={currentStats?.total || 0}
             color={COLORS.nearExpiry}
           />
 
           <ProgressCard
             title={t('dashboard.expired')}
-            current={getCurrentStats()?.expired || 0}
-            total={getCurrentStats()?.total || 0}
+            current={currentStats?.expired || 0}
+            total={currentStats?.total || 0}
             color={COLORS.expired}
           />
 
-          <ProgressCard
-            title={t('statistics.comingSoon')}
-            current={Math.round(getWastePercentage())}
-            total={100}
-            color={COLORS.error}
-            showPercentage={false}
-          />
         </View>
 
         {/* Distribution Charts */}
@@ -499,22 +693,22 @@ export default function StatisticsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('statistics.insights')}</Text>
 
-          {getCurrentStats()?.near_expiry && getCurrentStats()!.near_expiry > 0 ? (
+          {getAllIngredientsStats()?.near_expiry && getAllIngredientsStats()!.near_expiry > 0 ? (
             <InsightCard
               icon="alert"
               title={t('statistics.actionRequired')}
-              message={`${t('statistics.youHave')} ${getCurrentStats()!.near_expiry} ${t('statistics.itemsExpiringSoon')}`}
+              message={`${t('statistics.youHave')} ${getAllIngredientsStats()!.near_expiry} ${t('statistics.itemsExpiringSoon')}`}
               color={COLORS.nearExpiry}
               action={t('statistics.planMeals')}
               onPress={handleActionRequiredPress}
             />
           ) : null}
 
-          {getCurrentStats()?.expired && getCurrentStats()!.expired > 0 ? (
+          {getAllIngredientsStats()?.expired && getAllIngredientsStats()!.expired > 0 ? (
             <InsightCard
               icon="close-circle"
               title={t('statistics.cleanupNeeded')}
-              message={`${t('statistics.youHave')} ${getCurrentStats()!.expired} ${t('statistics.itemsExpired')}`}
+              message={`${t('statistics.youHave')} ${getAllIngredientsStats()!.expired} ${t('statistics.itemsExpired')}`}
               color={COLORS.expired}
               action={t('statistics.disposeExpired')}
             />
@@ -530,12 +724,12 @@ export default function StatisticsScreen() {
             />
           ) : null}
 
-          {(!getCurrentStats()?.near_expiry || getCurrentStats()!.near_expiry === 0) &&
-            (!getCurrentStats()?.expired || getCurrentStats()!.expired === 0) ? (
+          {(!getAllIngredientsStats()?.near_expiry || getAllIngredientsStats()!.near_expiry === 0) &&
+            (!getAllIngredientsStats()?.expired || getAllIngredientsStats()!.expired === 0) ? (
             <InsightCard
               icon="check-circle"
               title={t('statistics.excellentManagement')}
-              message={`${t('statistics.maintainPractices')} - ${t('statistics.readyToUse')}`}
+              message={t('statistics.maintainPractices')}
               color={COLORS.success}
               action={t('statistics.maintainPractices')}
             />
@@ -562,29 +756,13 @@ export default function StatisticsScreen() {
               <View style={styles.performanceRow}>
                 <Text style={styles.performanceLabel}>{t('statistics.inventoryTurnover')}:</Text>
                 <Text style={styles.performanceValue}>
-                  {getCurrentStats()?.used ? Math.round((getCurrentStats()!.used / (getCurrentStats()!.total || 1)) * 100) : 0}%
+                  {currentStats?.used ? Math.round((currentStats!.used / (currentStats!.total || 1)) * 100) : 0}%
                 </Text>
               </View>
             </Card.Content>
           </Card>
         </View>
 
-        {/* Coming Soon Features */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('statistics.comingSoon')}</Text>
-          <Card style={styles.comingSoonCard}>
-            <Card.Content>
-              <Text style={styles.comingSoonTitle}>{t('statistics.comingSoonTitle')}</Text>
-              <View style={styles.comingSoonFeatures}>
-                <Text style={styles.comingSoonFeature}>📊 {t('statistics.comingSoonChart')}</Text>
-                <Text style={styles.comingSoonFeature}>📈 {t('statistics.comingSoonTrends')}</Text>
-                <Text style={styles.comingSoonFeature}>🛒 {t('statistics.comingSoonShopping')}</Text>
-                <Text style={styles.comingSoonFeature}>💰 {t('statistics.comingSoonCost')}</Text>
-                <Text style={styles.comingSoonFeature}>🌱 {t('statistics.comingSoonSustain')}</Text>
-              </View>
-            </Card.Content>
-          </Card>
-        </View>
       </ScrollView>
 
       {/* 烹饪建议模态框 */}
@@ -602,6 +780,68 @@ export default function StatisticsScreen() {
         items={getStatusItems(selectedStatus)}
         timeframe={selectedTimeframe}
       />
+
+      {/* 新鲜度评分说明模态框 */}
+      {freshnessScoreModalVisible && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('statistics.freshnessScore')}</Text>
+              <TouchableOpacity
+                onPress={() => setFreshnessScoreModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <MaterialCommunityIcons name="close" size={24} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.modalSubtitle}>{t('statistics.freshnessScoreCalculation')}</Text>
+
+              <View style={styles.calculationSection}>
+                <Text style={styles.calculationTitle}>{t('statistics.scoringWeights')}</Text>
+                <View style={styles.weightItem}>
+                  <View style={styles.weightIndicator} />
+                  <Text style={styles.weightText}>{t('statistics.freshItems')}: 100%</Text>
+                </View>
+                <View style={styles.weightItem}>
+                  <View style={[styles.weightIndicator, { backgroundColor: COLORS.nearExpiry }]} />
+                  <Text style={styles.weightText}>{t('statistics.nearExpiryItems')}: 50%</Text>
+                </View>
+                <View style={styles.weightItem}>
+                  <View style={[styles.weightIndicator, { backgroundColor: COLORS.expired }]} />
+                  <Text style={styles.weightText}>{t('statistics.expiredItems')}: 0%</Text>
+                </View>
+                <View style={styles.weightItem}>
+                  <View style={[styles.weightIndicator, { backgroundColor: COLORS.used }]} />
+                  <Text style={styles.weightText}>{t('statistics.usedItems')}: 80%</Text>
+                </View>
+              </View>
+
+              <View style={styles.formulaSection}>
+                <Text style={styles.formulaTitle}>{t('statistics.calculationFormula')}</Text>
+                <Text style={styles.formulaText}>
+                  {t('statistics.freshnessFormula')}
+                </Text>
+              </View>
+
+              <View style={styles.exampleSection}>
+                <Text style={styles.exampleTitle}>{t('statistics.example')}</Text>
+                <Text style={styles.exampleText}>
+                  {t('statistics.freshnessExample')}
+                </Text>
+              </View>
+
+              <View style={styles.defaultScoreSection}>
+                <Text style={styles.defaultScoreTitle}>{t('statistics.defaultScoreRule')}</Text>
+                <Text style={styles.defaultScoreText}>
+                  {t('statistics.defaultScoreExplanation')}
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      )}
     </LinearGradient>
   );
 }
@@ -916,31 +1156,140 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.text,
   },
-  comingSoonCard: {
-    marginHorizontal: 16,
-    marginBottom: 32,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+  // 新鲜度评分说明模态框样式
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
   },
-  comingSoonTitle: {
+  modalContent: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    width: '90%',
+    maxHeight: '80%',
+    elevation: 10,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  calculationSection: {
+    marginBottom: 20,
+  },
+  calculationTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.text,
     marginBottom: 12,
   },
-  comingSoonFeatures: {
-    gap: 8,
+  weightItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  comingSoonFeature: {
+  weightIndicator: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.fresh,
+    marginRight: 12,
+  },
+  weightText: {
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  formulaSection: {
+    marginBottom: 20,
+  },
+  formulaTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+  formulaText: {
     fontSize: 14,
     color: COLORS.textSecondary,
     lineHeight: 20,
+    backgroundColor: COLORS.borderLight,
+    padding: 12,
+    borderRadius: 8,
+    fontFamily: 'monospace',
+  },
+  exampleSection: {
+    marginBottom: 10,
+  },
+  exampleTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+  exampleText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  defaultScoreSection: {
+    marginBottom: 10,
+  },
+  defaultScoreTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+  defaultScoreText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  // 图表样式
+  chartCard: {
+    marginHorizontal: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    position: 'relative',
+  },
+  chartCardContent: {
+    padding: 12,
+    paddingHorizontal: 12,
+    position: 'relative',
   },
 });
