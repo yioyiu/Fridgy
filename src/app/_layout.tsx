@@ -8,6 +8,7 @@ import { COLORS } from '@/utils/constants';
 import { notificationService } from '@/services/notifications';
 import { SeasonalFruitsScheduler } from '@/services/notifications/seasonalFruitsScheduler';
 import { EnvironmentHelper } from '@/utils/helpers/environment';
+import { PermissionManager } from '@/services/permissions';
 
 // 保持splash screen可见，直到我们准备隐藏它
 SplashScreen.preventAutoHideAsync();
@@ -18,6 +19,12 @@ export default function RootLayout() {
     try {
       // 打印环境信息
       EnvironmentHelper.logEnvironmentInfo();
+
+      // 请求网络权限（应用启动时）
+      const networkPermission = await PermissionManager.requestNetworkPermission();
+      if (!networkPermission.granted) {
+        console.log('Network permission not granted, some features may be limited');
+      }
 
       // 只在支持的环境中初始化通知服务
       if (EnvironmentHelper.isLocalNotificationsAvailable()) {

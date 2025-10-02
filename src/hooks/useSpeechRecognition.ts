@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
 import { useI18n } from '@/utils/i18n';
+import { PermissionManager } from '@/services/permissions';
 
 export interface UseSpeechRecognitionReturn {
     isRecording: boolean;
@@ -107,6 +108,34 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
 
     const startRecording = async () => {
         try {
+            // 首次使用时请求语音权限
+            const speechPermission = await PermissionManager.checkSpeechPermission();
+            if (!speechPermission.granted) {
+                if (speechPermission.canAskAgain) {
+                    // 显示权限说明并请求权限
+                    PermissionManager.showPermissionExplanation(
+                        'speech',
+                        async () => {
+                            const permissionResult = await PermissionManager.requestSpeechPermission();
+                            if (permissionResult.granted) {
+                                // 权限获得后继续录音
+                                await startRecording();
+                            } else {
+                                PermissionManager.showPermissionSettingsGuide('speech');
+                            }
+                        },
+                        () => {
+                            console.log('Speech permission denied by user');
+                        }
+                    );
+                    return;
+                } else {
+                    // 权限被永久拒绝，引导用户去设置
+                    PermissionManager.showPermissionSettingsGuide('speech');
+                    return;
+                }
+            }
+
             if (Platform.OS === 'web') {
                 if (!recognitionRef.current) {
                     Alert.alert(

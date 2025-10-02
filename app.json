@@ -17,10 +17,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fridgy.app",
-      "buildNumber": "7",
+      "buildNumber": "9",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app uses location to suggest nearby stores.",
         "NSUserNotificationsUsageDescription": "This app sends notifications to remind you about expiring ingredients.",
+        "NSSpeechRecognitionUsageDescription": "This app uses speech recognition to help you quickly add ingredients to your fridge by voice input.",
+        "NSMicrophoneUsageDescription": "This app needs microphone access for voice recognition to add ingredients quickly.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -40,7 +42,10 @@
         "RECEIVE_BOOT_COMPLETED",
         "WAKE_LOCK",
         "NOTIFICATIONS",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "RECORD_AUDIO"
       ]
     },
     "plugins": [
