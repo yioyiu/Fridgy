@@ -9,37 +9,37 @@ export interface PermissionResult {
 }
 
 export class PermissionManager {
-  /**
-   * 请求网络权限（应用启动时调用）
-   */
-  static async requestNetworkPermission(): Promise<PermissionResult> {
-    try {
-      // 检查网络状态
-      const networkState = await NetInfo.fetch();
-      
-      if (!networkState.isConnected) {
-        return {
-          granted: false,
-          canAskAgain: true,
-          status: 'no_network',
-        };
-      }
+    /**
+     * 请求网络权限（应用启动时调用）
+     */
+    static async requestNetworkPermission(): Promise<PermissionResult> {
+        try {
+            // 检查网络状态
+            const networkState = await NetInfo.fetch();
 
-      // 网络权限通常不需要显式请求，但我们可以检查网络连接
-      return {
-        granted: true,
-        canAskAgain: false,
-        status: 'granted',
-      };
-    } catch (error) {
-      console.error('Error checking network permission:', error);
-      return {
-        granted: false,
-        canAskAgain: true,
-        status: 'error',
-      };
+            if (!networkState.isConnected) {
+                return {
+                    granted: false,
+                    canAskAgain: true,
+                    status: 'no_network',
+                };
+            }
+
+            // 网络权限通常不需要显式请求，但我们可以检查网络连接
+            return {
+                granted: true,
+                canAskAgain: false,
+                status: 'granted',
+            };
+        } catch (error) {
+            console.error('Error checking network permission:', error);
+            return {
+                granted: false,
+                canAskAgain: true,
+                status: 'error',
+            };
+        }
     }
-  }
 
     /**
      * 请求语音识别权限（用户首次点击语音按钮时调用）

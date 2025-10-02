@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fridgy.app",
-      "buildNumber": "9",
+      "buildNumber": "10",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app uses location to suggest nearby stores.",
         "NSUserNotificationsUsageDescription": "This app sends notifications to remind you about expiring ingredients.",
