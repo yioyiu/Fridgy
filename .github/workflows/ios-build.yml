@@ -83,6 +83,8 @@ jobs:
           echo "Starting EAS build for: $BUILD_TYPE"
           if [ "$SIMULATOR" = "true" ]; then
             echo "Building for iOS Simulator"
+          else
+            echo "Building for iOS Device (App Store)"
           fi
           
           # Start the build
@@ -110,7 +112,9 @@ jobs:
           BUILD_ID=$(cat build_output.json | jq -r '.[0].id')
           if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" = "null" ]; then
             echo "::error::Failed to extract build ID from build output"
-            cat build_output.json
+            if [ -f build_output.json ]; then
+              cat build_output.json
+            fi
             exit 1
           fi
           echo "Build ID: $BUILD_ID"
@@ -124,9 +128,13 @@ jobs:
           echo "Waiting for build $BUILD_ID to complete..."
           
           # Wait for build to finish
+          MAX_WAIT_TIME=3600  # 60 minutes max
+          ELAPSED_TIME=0
+          SLEEP_INTERVAL=30
+          
           while true; do
             STATUS=$(eas build:view $BUILD_ID --json | jq -r '.status')
-            echo "Current status: $STATUS"
+            echo "Current status: $STATUS (elapsed: ${ELAPSED_TIME}s)"
             
             case $STATUS in
               "finished")
@@ -134,12 +142,19 @@ jobs:
                 break
                 ;;
               "errored"|"canceled")
-                echo "Build failed with status: $STATUS"
+                echo "::error::Build failed with status: $STATUS"
+                # Get build logs for debugging
+                eas build:view $BUILD_ID --json | jq '.'
                 exit 1
                 ;;
               *)
-                echo "Build in progress... waiting 30 seconds"
-                sleep 30
+                if [ $ELAPSED_TIME -ge $MAX_WAIT_TIME ]; then
+                  echo "::error::Build timeout after $MAX_WAIT_TIME seconds"
+                  exit 1
+                fi
+                echo "Build in progress... waiting ${SLEEP_INTERVAL} seconds"
+                sleep $SLEEP_INTERVAL
+                ELAPSED_TIME=$((ELAPSED_TIME + SLEEP_INTERVAL))
                 ;;
             esac
           done
@@ -156,6 +171,7 @@ jobs:
           
           if [ -z "$ARTIFACT_URL" ] || [ "$ARTIFACT_URL" = "null" ]; then
             echo "::error::Could not get artifact URL"
+            eas build:view $BUILD_ID --json | jq '.artifacts'
             exit 1
           fi
           
@@ -171,6 +187,12 @@ jobs:
           
           # Download the artifact
           curl -L -o "artifacts/ios-build.$EXT" "$ARTIFACT_URL"
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to download artifact"
+            exit 1
+          fi
+          
+          echo "Artifact downloaded successfully: artifacts/ios-build.$EXT"
           echo "artifact_path=artifacts/ios-build.$EXT" >> $GITHUB_OUTPUT
 
       - name: Upload build artifact
@@ -181,8 +203,14 @@ jobs:
           retention-days: 30
 
       - name: Build summary
+        if: success()
         run: |
           echo "## 🍎 iOS Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "- **Build ID**: ${{ steps.build.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Type**: ${{ github.event.inputs.build_type || 'production' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Simulator**: ${{ github.event.inputs.simulator || 'false' }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Artifact**: ${{ steps.download.outputs.artifact_path }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View build details: https://expo.dev/accounts/yioyiu/projects/fridgy/builds/${{ steps.build.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
+
