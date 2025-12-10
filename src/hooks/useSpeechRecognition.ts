@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
 import { useI18n } from '@/utils/i18n';
 import { PermissionManager } from '@/services/permissions';
+import { EnvironmentHelper } from '@/utils/helpers/environment';
 
 export interface UseSpeechRecognitionReturn {
     isRecording: boolean;
@@ -17,6 +18,7 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
     const [lastResult, setLastResult] = useState<string | null>(null);
     const { currentLanguage } = useI18n();
     const recognitionRef = useRef<any>(null);
+    const voiceModuleRef = useRef<any>(null);
 
     // 语言代码映射
     const getLanguageCode = (language: string): string => {
@@ -58,12 +60,6 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
                     setLastResult(result);
                     setIsRecording(false);
                     setIsProcessing(false);
-
-                    Alert.alert(
-                        '语音识别成功',
-                        `识别结果: ${result}`,
-                        [{ text: '确定' }]
-                    );
                 };
 
                 recognitionRef.current.onerror = (event: any) => {
@@ -99,9 +95,58 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
             }
         }
 
+        // 原生平台：按需加载并注册 @react-native-voice/voice 事件（避开 Expo Go）
+        const setupNativeVoice = async () => {
+            if (Platform.OS === 'web') return;
+            if (EnvironmentHelper.isExpoGo()) {
+                // 在 Expo Go 中不加载原生语音模块
+                return;
+            }
+            try {
+                const voice = await import('@react-native-voice/voice');
+                voiceModuleRef.current = voice.default || voice;
+
+                voiceModuleRef.current.onSpeechStart = () => {
+                    setIsRecording(true);
+                    setIsProcessing(true);
+                };
+
+                voiceModuleRef.current.onSpeechResults = (event: any) => {
+                    const results = event.value || [];
+                    const text = results[0] || '';
+                    if (text) {
+                        setLastResult(text);
+                    }
+                    setIsRecording(false);
+                    setIsProcessing(false);
+                };
+
+                voiceModuleRef.current.onSpeechError = (event: any) => {
+                    const message = event?.error?.message || '语音识别失败';
+                    console.error('语音识别错误:', message);
+                    setIsRecording(false);
+                    setIsProcessing(false);
+                    Alert.alert('语音识别失败', message);
+                };
+
+                voiceModuleRef.current.onSpeechEnd = () => {
+                    setIsRecording(false);
+                    setIsProcessing(false);
+                };
+            } catch (e) {
+                console.warn('Failed to load @react-native-voice/voice. Speech features disabled.', e);
+            }
+        };
+
+        setupNativeVoice();
+
         return () => {
             if (recognitionRef.current) {
                 recognitionRef.current.stop();
+            }
+            if (Platform.OS !== 'web' && voiceModuleRef.current) {
+                try { voiceModuleRef.current.destroy?.(); } catch { }
+                try { voiceModuleRef.current.removeAllListeners?.(); } catch { }
             }
         };
     }, []);
@@ -151,49 +196,31 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
                 recognitionRef.current.lang = languageCode;
                 recognitionRef.current.start();
             } else {
-                // 移动端使用模拟功能
-                Alert.alert(
-                    '语音识别提示',
-                    '在移动端，语音识别功能需要开发构建版本才能正常工作。\n\n当前为演示模式，请手动输入食材名称。',
-                    [
-                        {
-                            text: '模拟识别',
-                            onPress: () => {
-                                setTimeout(() => {
-                                    const mockResults: Record<string, string[]> = {
-                                        'zh': ['苹果', '香蕉', '橙子', '葡萄', '草莓'],
-                                        'en': ['apple', 'banana', 'orange', 'grape', 'strawberry'],
-                                        'es': ['manzana', 'plátano', 'naranja', 'uva', 'fresa'],
-                                        'fr': ['pomme', 'banane', 'orange', 'raisin', 'fraise'],
-                                    };
-
-                                    const results = mockResults[currentLanguage] || mockResults['en'];
-                                    if (results && results.length > 0) {
-                                        const randomResult = results[Math.floor(Math.random() * results.length)];
-                                        if (randomResult) {
-                                            setLastResult(randomResult);
-                                        }
-
-                                        Alert.alert(
-                                            '模拟识别成功',
-                                            `识别结果: ${randomResult}`,
-                                            [{ text: '确定' }]
-                                        );
-                                    }
-                                    setIsRecording(false);
-                                    setIsProcessing(false);
-                                }, 2000);
-                            }
-                        },
-                        {
-                            text: '取消',
-                            onPress: () => {
-                                setIsRecording(false);
-                                setIsProcessing(false);
-                            }
-                        }
-                    ]
-                );
+                // 原生端调用语音识别
+                if (EnvironmentHelper.isExpoGo()) {
+                    Alert.alert(
+                        'Expo Go 不支持语音识别',
+                        '请使用开发构建或生产构建以启用语音识别功能。'
+                    );
+                    return;
+                }
+                setLastResult(null);
+                const languageCode = getLanguageCode(currentLanguage);
+                setIsRecording(true);
+                setIsProcessing(true);
+                try {
+                    if (!voiceModuleRef.current) {
+                        // 极端情况下尚未加载完成，再尝试加载一次
+                        const voice = await import('@react-native-voice/voice');
+                        voiceModuleRef.current = voice.default || voice;
+                    }
+                    await voiceModuleRef.current.start(languageCode);
+                } catch (e: any) {
+                    console.error('启动语音识别失败:', e?.message || e);
+                    setIsRecording(false);
+                    setIsProcessing(false);
+                    Alert.alert('录音失败', '无法启动语音识别');
+                }
             }
         } catch (error) {
             console.error('录音启动失败:', error);
@@ -208,8 +235,22 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
             if (Platform.OS === 'web' && recognitionRef.current) {
                 recognitionRef.current.stop();
             } else {
-                setIsRecording(false);
-                setIsProcessing(false);
+                if (EnvironmentHelper.isExpoGo()) {
+                    setIsRecording(false);
+                    setIsProcessing(false);
+                    return;
+                }
+                try {
+                    await voiceModuleRef.current?.stop?.();
+                } catch (e) {
+                    // 如果 stop 失败，尝试取消
+                    try {
+                        await voiceModuleRef.current?.cancel?.();
+                    } catch (_) { }
+                } finally {
+                    setIsRecording(false);
+                    setIsProcessing(false);
+                }
             }
         } catch (error) {
             console.error('录音停止失败:', error);

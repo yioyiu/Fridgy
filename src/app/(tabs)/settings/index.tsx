@@ -859,6 +859,10 @@ export default function SettingsScreen() {
               title={t('settings.version')}
               subtitle={versionChecker.getFullVersionInfo()}
               icon="information"
+              onPress={() => {
+                // Open app store page when tapping version
+                appRatingService.openStore();
+              }}
             />
             <Divider />
             <SettingItem

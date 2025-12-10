@@ -3,28 +3,28 @@ import { Location } from '@/utils/types/ingredient';
 export const DEFAULT_LOCATIONS: Location[] = [
   {
     id: '1',
-    name: 'Fridge',
+    name: '冰箱',
     icon: 'fridge',
     color: '#87CEEB',
     sort_order: 1,
   },
   {
     id: '2',
-    name: 'Freezer',
+    name: '冷冻室',
     icon: 'snowflake',
     color: '#4ECDC4',
     sort_order: 2,
   },
   {
     id: '3',
-    name: 'Pantry',
+    name: '储物柜',
     icon: 'cupboard',
     color: '#D4A574',
     sort_order: 3,
   },
   {
     id: '4',
-    name: 'Counter',
+    name: '台面',
     icon: 'counter',
     color: '#FFD93D',
     sort_order: 4,

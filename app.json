@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fridgy.app",
-      "buildNumber": "11",
+      "buildNumber": "31",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app uses location to suggest nearby stores.",
         "NSUserNotificationsUsageDescription": "This app sends notifications to remind you about expiring ingredients.",
@@ -28,12 +28,24 @@
     },
     "android": {
       "package": "com.fridgy.app",
-      "versionCode": 6,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/png/icon.png",
         "backgroundColor": "#4CAF50"
       },
       "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "WAKE_LOCK",
+        "NOTIFICATIONS",
+        "POST_NOTIFICATIONS",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "ACCESS_FINE_LOCATION",
@@ -61,6 +73,12 @@
       "eas": {
         "projectId": "3ae93e28-1b5a-4890-80b2-66aa8186006d"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3ae93e28-1b5a-4890-80b2-66aa8186006d"
     }
   }
 }

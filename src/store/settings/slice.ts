@@ -221,6 +221,24 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'pantry-settings',
       storage: createJSONStorage(() => AsyncStorage),
+      version: 2,
+      migrate: async (persistedState: any, version: number) => {
+        if (!persistedState) return persistedState;
+        // 将旧的英文地点名称迁移为中文
+        const nameMap: Record<string, string> = {
+          'Fridge': '冰箱',
+          'Freezer': '冷冻室',
+          'Pantry': '储物柜',
+          'Counter': '台面',
+        };
+        if (Array.isArray(persistedState.locations)) {
+          persistedState.locations = persistedState.locations.map((loc: any) => ({
+            ...loc,
+            name: nameMap[loc?.name] || loc?.name,
+          }));
+        }
+        return persistedState;
+      },
       partialize: (s) => ({
         locations: s.locations,
         hasSeenOnboarding: s.hasSeenOnboarding,

@@ -159,6 +159,22 @@ export const useIngredientsStore = create<IngredientsStore>()(persist(
           // 立即检查一次状态变化
           await statusMonitor.checkStatusChangesNow(updatedSampleIngredients);
         } else {
+          // 已初始化：执行一次性迁移，将旧英文地点映射为中文
+          const nameMap: Record<string, string> = {
+            'Fridge': '冰箱',
+            'Freezer': '冷冻室',
+            'Pantry': '储物柜',
+            'Counter': '台面',
+          };
+          const current = get().ingredients;
+          const hasEnglish = current.some(i => nameMap[i.location]);
+          if (hasEnglish) {
+            const migrated = current.map(i => ({
+              ...i,
+              location: nameMap[i.location] || i.location,
+            }));
+            set({ ingredients: migrated });
+          }
           set({ isLoading: false });
         }
       } catch (error) {

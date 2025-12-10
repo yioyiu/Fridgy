@@ -12,12 +12,12 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     id: '1',
     user_id: 'user-1',
     name: '牛奶',
-    category: 'Dairy',
+    category: '乳制品',
     quantity: 1,
-    unit: 'L',
+    unit: '升',
     purchase_date: getDateOffset(-3), // 3天前购买
     expiration_date: getDateOffset(7), // 7天后过期 (fresh)
-    location: 'Fridge',
+    location: '冰箱',
     images: [],
     notes: '有机全脂牛奶',
     status: 'fresh', // 会被重新计算
@@ -29,12 +29,12 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     id: '2',
     user_id: 'user-1',
     name: '菠菜',
-    category: 'Vegetables',
+    category: '蔬菜',
     quantity: 200,
-    unit: 'g',
+    unit: '克',
     purchase_date: getDateOffset(-2), // 2天前购买
     expiration_date: getDateOffset(2), // 2天后过期 (near_expiry)
-    location: 'Fridge',
+    location: '冰箱',
     images: [],
     notes: '新鲜嫩菠菜',
     status: 'near_expiry', // 会被重新计算
@@ -46,12 +46,12 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     id: '3',
     user_id: 'user-1',
     name: '鸡胸肉',
-    category: 'Meat',
+    category: '肉类',
     quantity: 500,
-    unit: 'g',
+    unit: '克',
     purchase_date: getDateOffset(-1), // 1天前购买
     expiration_date: getDateOffset(5), // 5天后过期 (fresh)
-    location: 'Fridge',
+    location: '冰箱',
     images: [],
     notes: '无骨无皮',
     status: 'fresh', // 会被重新计算
@@ -63,12 +63,12 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     id: '4',
     user_id: 'user-1',
     name: '面包',
-    category: 'Bread',
+    category: '面包',
     quantity: 1,
-    unit: 'pc',
+    unit: '个',
     purchase_date: getDateOffset(-4), // 4天前购买
     expiration_date: getDateOffset(1), // 1天后过期 (near_expiry)
-    location: 'Pantry',
+    location: '储物柜',
     images: [],
     notes: '全麦面包',
     status: 'near_expiry', // 会被重新计算
@@ -80,12 +80,12 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     id: '5',
     user_id: 'user-1',
     name: '鸡蛋',
-    category: 'Eggs',
+    category: '鸡蛋',
     quantity: 12,
-    unit: 'pc',
+    unit: '个',
     purchase_date: getDateOffset(-5), // 5天前购买
     expiration_date: getDateOffset(15), // 15天后过期 (fresh)
-    location: 'Fridge',
+    location: '冰箱',
     images: [],
     notes: '大号棕色鸡蛋',
     status: 'fresh', // 会被重新计算
@@ -98,12 +98,12 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     id: '6',
     user_id: 'user-1',
     name: '酸奶',
-    category: 'Dairy',
+    category: '乳制品',
     quantity: 1,
-    unit: 'cup',
+    unit: '杯',
     purchase_date: getDateOffset(-7), // 7天前购买
     expiration_date: getDateOffset(-2), // 2天前就过期了 (expired)
-    location: 'Fridge',
+    location: '冰箱',
     images: [],
     notes: '希腊酸奶',
     status: 'expired', // 会被重新计算
@@ -115,12 +115,12 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     id: '7',
     user_id: 'user-1',
     name: '西红柿',
-    category: 'Vegetables',
+    category: '蔬菜',
     quantity: 3,
-    unit: 'pc',
+    unit: '个',
     purchase_date: getDateOffset(-3), // 3天前购买
     expiration_date: getDateOffset(3), // 3天后过期 (near_expiry - 正好在临界值)
-    location: 'Counter',
+    location: '台面',
     images: [],
     notes: '新鲜西红柿',
     status: 'near_expiry', // 会被重新计算
@@ -133,12 +133,12 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     id: '8',
     user_id: 'user-1',
     name: '大米',
-    category: 'Grains',
+    category: '谷物',
     quantity: 1,
-    unit: 'kg',
+    unit: '千克',
     purchase_date: getDateOffset(-15), // 15天前购买
     expiration_date: getDateOffset(365), // 1年后过期
-    location: 'Pantry',
+    location: '储物柜',
     images: [],
     notes: '白米',
     status: 'fresh',
@@ -150,12 +150,12 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     id: '9',
     user_id: 'user-1',
     name: '意大利面',
-    category: 'Grains',
+    category: '谷物',
     quantity: 500,
-    unit: 'g',
+    unit: '克',
     purchase_date: getDateOffset(-35), // 35天前购买
     expiration_date: getDateOffset(300), // 300天后过期
-    location: 'Pantry',
+    location: '储物柜',
     images: [],
     notes: '意大利面条',
     status: 'fresh',
@@ -167,12 +167,12 @@ export const SAMPLE_INGREDIENTS: Ingredient[] = [
     id: '10',
     user_id: 'user-1',
     name: '橄榄油',
-    category: 'Condiments',
+    category: '调味品',
     quantity: 500,
-    unit: 'ml',
+    unit: '毫升',
     purchase_date: getDateOffset(-100), // 100天前购买
     expiration_date: getDateOffset(200), // 200天后过期
-    location: 'Pantry',
+    location: '储物柜',
     images: [],
     notes: '特级初榨橄榄油',
     status: 'fresh',

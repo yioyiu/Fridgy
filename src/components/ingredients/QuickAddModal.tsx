@@ -8,7 +8,6 @@ import {
   ScrollView,
   Alert,
   Platform,
-  Animated,
 } from 'react-native';
 import { TextInput, Button } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -18,8 +17,7 @@ import { useSettingsStore } from '@/store/settings/slice';
 import { useIngredientsStore } from '@/store/ingredients/slice';
 import { useI18n } from '@/utils/i18n';
 import { aiManager, LocationStorageAnalysisResult } from '@/services/ai/aiManager';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+// Removed speech recognition
 
 export interface QuickAddModalProps {
   visible: boolean;
@@ -48,7 +46,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
     unit: '', // Keep for compatibility but not used
     purchase_date: new Date().toISOString().split('T')[0] || '',
     expiration_date: '', // Will be set by AI suggestion or user input
-    location: '',
+    location: '冰箱',
     images: [],
     notes: '',
   });
@@ -59,80 +57,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [aiSuggestion, setAiSuggestion] = useState<LocationStorageAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // 动画状态
-  const [rippleScale] = useState(new Animated.Value(0));
-  const [rippleOpacity] = useState(new Animated.Value(0));
-  const [overlayOpacity] = useState(new Animated.Value(0));
-
-  // 使用语音识别Hook
-  const { isRecording, isProcessing, startRecording, stopRecording, lastResult } = useSpeechRecognition();
-
-  // 处理语音识别结果
-  React.useEffect(() => {
-    if (lastResult) {
-      handleInputChange('name', lastResult);
-    }
-  }, [lastResult]);
-
-  // 开始录音动画
-  const startRecordingAnimation = () => {
-    // 页面变暗
-    Animated.timing(overlayOpacity, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-
-    // 水波纹效果
-    rippleScale.setValue(0);
-    rippleOpacity.setValue(1);
-
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(rippleScale, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(rippleOpacity, {
-          toValue: 0,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start(() => {
-      // 循环播放水波纹效果
-      if (isRecording) {
-        startRecordingAnimation();
-      }
-    });
-  };
-
-  // 停止录音动画
-  const stopRecordingAnimation = () => {
-    // 恢复页面亮度
-    Animated.timing(overlayOpacity, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-
-    // 停止水波纹
-    rippleScale.setValue(0);
-    rippleOpacity.setValue(0);
-  };
-
-  // 处理录音开始
-  const handleStartRecording = () => {
-    startRecording();
-    startRecordingAnimation();
-  };
-
-  // 处理录音结束
-  const handleStopRecording = () => {
-    stopRecording();
-    stopRecordingAnimation();
-  };
+  // 语音识别已移除
 
   // Get frequently used ingredients based on recent additions
   const getFrequentIngredients = () => {
@@ -399,7 +324,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 >
                   <View style={styles.datePickerHeader}>
                     <Text style={styles.datePickerTitle}>
-                      {field === 'purchase_date' ? 'Select Storage Date' : 'Select Expiration Date'}
+                      {field === 'purchase_date' ? '选择存放日期' : '选择过期日期'}
                     </Text>
                     <TouchableOpacity
                       onPress={() => {
@@ -408,7 +333,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                       }}
                       style={styles.datePickerDoneButton}
                     >
-                      <Text style={styles.datePickerDoneText}>Done</Text>
+                      <Text style={styles.datePickerDoneText}>完成</Text>
                     </TouchableOpacity>
                   </View>
                   <DateTimePicker
@@ -473,7 +398,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
           unit: '',
           purchase_date: new Date().toISOString().split('T')[0] || '',
           expiration_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] || '',
-          location: '',
+          location: '冰箱',
           images: [],
           notes: '',
         });
@@ -494,7 +419,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       unit: '',
       purchase_date: new Date().toISOString().split('T')[0] || '',
       expiration_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] || '',
-      location: '',
+      location: '冰箱',
       images: [],
       notes: '',
     });
@@ -571,18 +496,37 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   };
 
   const renderFrequentIngredients = () => {
-    // For testing: show some default frequent ingredients if none exist
-    const displayIngredients = frequentIngredients.length > 0 ? frequentIngredients : [
-      { name: '牛奶', count: 3, defaultUnit: 'L', defaultLocation: 'Fridge' },
-      { name: '鸡蛋', count: 2, defaultUnit: 'pc', defaultLocation: 'Fridge' },
-      { name: '面包', count: 2, defaultUnit: 'pc', defaultLocation: 'Pantry' },
-    ];
+    // Localized fallback when no frequent ingredients exist
+    const displayIngredients = frequentIngredients.length > 0 ? frequentIngredients : (() => {
+      const fridge = t('locations.fridge') || '冰箱';
+      const pantry = t('locations.storage') || '储物柜';
+      const pieces = t('units.pieces') || '个';
+      const liters = t('units.liters') || '升';
+
+      if (currentLanguage === 'zh') {
+        return [
+          { name: '牛奶', count: 3, defaultUnit: liters, defaultLocation: fridge },
+          { name: '鸡蛋', count: 2, defaultUnit: pieces, defaultLocation: fridge },
+          { name: '面包', count: 2, defaultUnit: pieces, defaultLocation: pantry },
+        ];
+      }
+
+      return [
+        { name: 'Milk', count: 3, defaultUnit: liters, defaultLocation: fridge },
+        { name: 'Eggs', count: 2, defaultUnit: pieces, defaultLocation: fridge },
+        { name: 'Bread', count: 2, defaultUnit: pieces, defaultLocation: pantry },
+      ];
+    })();
 
     if (displayIngredients.length === 0) return null;
 
     return (
       <View style={styles.frequentIngredientsSection}>
-        <Text style={styles.frequentIngredientsTitle}>常用食材</Text>
+        <Text style={styles.frequentIngredientsTitle}>
+          {t('dashboard.frequentIngredients') === 'dashboard.frequentIngredients'
+            ? (currentLanguage === 'zh' ? '常用食材' : 'Frequent Ingredients')
+            : t('dashboard.frequentIngredients')}
+        </Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -614,17 +558,6 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       onRequestClose={handleCancel}
     >
       <View style={styles.container}>
-        {/* 录音时的遮罩层 */}
-        {isRecording && (
-          <Animated.View
-            style={[
-              styles.recordingOverlay,
-              {
-                opacity: overlayOpacity,
-              },
-            ]}
-          />
-        )}
 
         <View style={styles.header}>
           <Text style={styles.title}>{t('dashboard.addIngredient')}</Text>
@@ -652,33 +585,6 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                   placeholder={t('forms.namePlaceholder')}
                   placeholderTextColor={COLORS.textSecondary}
                 />
-                <TouchableOpacity
-                  style={[styles.voiceButton, isRecording && styles.voiceButtonRecording]}
-                  onPressIn={handleStartRecording}
-                  onPressOut={handleStopRecording}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name={
-                      isProcessing ? "loading" :
-                        isRecording ? "microphone" : "microphone-outline"
-                    }
-                    size={20}
-                    color={isRecording || isProcessing ? "#FFFFFF" : COLORS.primary}
-                  />
-                  {/* 水波纹效果 */}
-                  {isRecording && (
-                    <Animated.View
-                      style={[
-                        styles.rippleEffect,
-                        {
-                          transform: [{ scale: rippleScale }],
-                          opacity: rippleOpacity,
-                        },
-                      ]}
-                    />
-                  )}
-                </TouchableOpacity>
               </View>
               {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
             </View>
@@ -1033,41 +939,5 @@ const styles = StyleSheet.create({
   nameInput: {
     flex: 1,
   },
-  voiceButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  voiceButtonRecording: {
-    backgroundColor: COLORS.error,
-    borderColor: COLORS.error,
-    transform: [{ scale: 1.1 }],
-  },
-  rippleEffect: {
-    position: 'absolute',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.error,
-    opacity: 0.3,
-  },
-  recordingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    zIndex: 1000,
-  },
+
 });
