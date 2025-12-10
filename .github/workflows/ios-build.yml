@@ -74,20 +74,45 @@ jobs:
           BUILD_TYPE="${{ github.event.inputs.build_type || 'production' }}"
           SIMULATOR="${{ github.event.inputs.simulator || 'false' }}"
           
+          # Auto-adjust profile for simulator builds (production profile doesn't support simulator)
+          if [ "$SIMULATOR" = "true" ] && [ "$BUILD_TYPE" = "production" ]; then
+            echo "::warning::Production profile is not compatible with simulator. Switching to 'preview' profile."
+            BUILD_TYPE="preview"
+          fi
+          
           echo "Starting EAS build for: $BUILD_TYPE"
           if [ "$SIMULATOR" = "true" ]; then
             echo "Building for iOS Simulator"
           fi
           
           # Start the build
+          set +e  # Don't exit on error, we'll handle it manually
           if [ "$SIMULATOR" = "true" ]; then
-            eas build --platform ios --profile $BUILD_TYPE --simulator --non-interactive --json > build_output.json
+            eas build --platform ios --profile $BUILD_TYPE --simulator --non-interactive --json > build_output.json 2>&1
+            BUILD_EXIT_CODE=$?
           else
-            eas build --platform ios --profile $BUILD_TYPE --non-interactive --json > build_output.json
+            eas build --platform ios --profile $BUILD_TYPE --non-interactive --json > build_output.json 2>&1
+            BUILD_EXIT_CODE=$?
+          fi
+          set -e  # Re-enable exit on error
+          
+          # Check if build command succeeded
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "::error::EAS build command failed with exit code $BUILD_EXIT_CODE"
+            if [ -f build_output.json ]; then
+              echo "Build output:"
+              cat build_output.json
+            fi
+            exit 1
           fi
           
           # Extract build ID
           BUILD_ID=$(cat build_output.json | jq -r '.[0].id')
+          if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" = "null" ]; then
+            echo "::error::Failed to extract build ID from build output"
+            cat build_output.json
+            exit 1
+          fi
           echo "Build ID: $BUILD_ID"
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
