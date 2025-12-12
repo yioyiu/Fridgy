@@ -17,6 +17,19 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# iOS
+ios/Pods/
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcarchive
+build/
+*.ipa
+*.dSYM.zip
+DerivedData/
+# 但保留 ExportOptions.plist
+!ios/ExportOptions.plist
+
 # Metro
 .metro-health-check*
 

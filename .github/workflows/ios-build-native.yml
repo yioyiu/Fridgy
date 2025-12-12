@@ -54,8 +54,28 @@ jobs:
       - name: Setup Expo CLI
         run: npm install -g @expo/cli@latest
 
+      - name: Backup ExportOptions.plist
+        run: |
+          if [ -f ios/ExportOptions.plist ]; then
+            mkdir -p .backup
+            cp ios/ExportOptions.plist .backup/ExportOptions.plist
+            echo "ExportOptions.plist backed up"
+          else
+            echo "::warning::ExportOptions.plist not found before prebuild"
+          fi
+
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --clean
+
+      - name: Restore ExportOptions.plist
+        run: |
+          if [ -f .backup/ExportOptions.plist ]; then
+            cp .backup/ExportOptions.plist ios/ExportOptions.plist
+            echo "ExportOptions.plist restored"
+          else
+            echo "::error::ExportOptions.plist backup not found"
+            exit 1
+          fi
 
       - name: Install CocoaPods dependencies
         run: |
@@ -77,18 +97,33 @@ jobs:
       - name: Get Team ID from ExportOptions.plist
         id: get_team_id
         run: |
-          # 使用 plutil 提取 Team ID
-          TEAM_ID=$(plutil -extract teamID raw ios/ExportOptions.plist 2>/dev/null || echo "")
-          
-          # 如果 plutil 失败，使用 sed 备用方法
-          if [ -z "$TEAM_ID" ]; then
-            TEAM_ID=$(grep -A 1 '<key>teamID</key>' ios/ExportOptions.plist | grep '<string>' | sed 's/.*<string>\(.*\)<\/string>.*/\1/' | xargs)
+          # 检查文件是否存在
+          if [ ! -f ios/ExportOptions.plist ]; then
+            echo "::error::ExportOptions.plist not found at ios/ExportOptions.plist"
+            echo "Please ensure the file is committed to Git"
+            exit 1
           fi
           
-          # 验证 Team ID
-          if [ -z "$TEAM_ID" ] || [ "$TEAM_ID" = "YOUR_TEAM_ID" ]; then
-            echo "::error::Team ID not found or not configured in ios/ExportOptions.plist"
-            echo "Current content:"
+          # 使用 plutil 提取 Team ID（静默错误）
+          TEAM_ID=""
+          if command -v plutil &> /dev/null; then
+            TEAM_ID=$(plutil -extract teamID raw ios/ExportOptions.plist 2>&1)
+            # 检查是否是错误信息
+            if [[ "$TEAM_ID" == *"Error"* ]] || [[ "$TEAM_ID" == *"error"* ]]; then
+              TEAM_ID=""
+            fi
+          fi
+          
+          # 如果 plutil 失败，使用 grep + sed 备用方法
+          if [ -z "$TEAM_ID" ]; then
+            TEAM_ID=$(grep -A 1 '<key>teamID</key>' ios/ExportOptions.plist | grep '<string>' | sed -E 's/.*<string>([^<]*)<\/string>.*/\1/' | tr -d '[:space:]')
+          fi
+          
+          # 验证 Team ID 格式（应该是 10 个字符的字母数字组合）
+          if [ -z "$TEAM_ID" ] || [ "$TEAM_ID" = "YOUR_TEAM_ID" ] || [ ${#TEAM_ID} -lt 8 ]; then
+            echo "::error::Team ID not found or invalid in ios/ExportOptions.plist"
+            echo "Extracted value: '$TEAM_ID'"
+            echo "File content:"
             cat ios/ExportOptions.plist
             exit 1
           fi
