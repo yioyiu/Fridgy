@@ -131,11 +131,35 @@ jobs:
           echo "team_id=$TEAM_ID" >> $GITHUB_OUTPUT
           echo "Team ID extracted: $TEAM_ID"
 
+      - name: Setup Apple Developer Account for Automatic Signing
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          # 对于自动签名，Xcode 需要能够访问 Apple Developer 账户
+          # 使用 App Store Connect API Key 是推荐的方法，但也可以使用 Apple ID + App-specific password
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+            echo "::error::Apple ID credentials are required for automatic signing"
+            echo "::error::Please configure APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD secrets"
+            exit 1
+          fi
+          
+          echo "Setting up Apple Developer account for automatic signing..."
+          echo "Apple ID: $APPLE_ID"
+          
+          # 注意：在 GitHub Actions 中，Xcode 的自动签名可能需要预先配置的证书和 profiles
+          # 或者使用 fastlane match 来管理证书和 profiles
+          # 对于首次构建，可能需要手动创建证书和 profiles
+          echo "Note: If this is the first build, you may need to create certificates and profiles manually"
+          echo "Or use fastlane match to manage certificates and profiles automatically"
+
       - name: Build Archive
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         run: |
+          # 使用 xcodebuild 构建，自动签名需要 Apple ID 凭据
+          # -allowProvisioningUpdates 允许 Xcode 自动创建/更新 provisioning profiles
           xcodebuild -workspace ios/Fridgy.xcworkspace \
             -scheme Fridgy \
             -configuration Release \
@@ -143,7 +167,11 @@ jobs:
             DEVELOPMENT_TEAM="${{ steps.get_team_id.outputs.team_id }}" \
             CODE_SIGN_STYLE="Automatic" \
             -allowProvisioningUpdates \
-            archive
+            archive 2>&1 | tee build.log || {
+              echo "::error::Build failed. Checking logs..."
+              tail -100 build.log
+              exit 1
+            }
 
       - name: Export IPA
         run: |
