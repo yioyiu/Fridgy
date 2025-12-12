@@ -219,8 +219,8 @@ jobs:
             -configuration Release \
             -archivePath build/Fridgy.xcarchive \
             DEVELOPMENT_TEAM="${{ steps.get_team_id.outputs.team_id }}" \
-            CODE_SIGN_STYLE="Automatic" \
-            -allowProvisioningUpdates \
+            CODE_SIGN_STYLE="Manual" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             archive 2>&1 | tee build.log || {
               echo "::error::Build failed. Checking logs..."
               tail -100 build.log
