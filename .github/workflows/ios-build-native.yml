@@ -141,7 +141,6 @@ jobs:
             -configuration Release \
             -archivePath build/Fridgy.xcarchive \
             DEVELOPMENT_TEAM="${{ steps.get_team_id.outputs.team_id }}" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGN_STYLE="Automatic" \
             -allowProvisioningUpdates \
             archive
