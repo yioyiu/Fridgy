@@ -102,15 +102,40 @@ MySecureMatchPassword123!@#
 
 ### 步骤 3：配置 GitHub Secrets
 
-访问：`https://github.com/你的用户名/Fridgy/settings/secrets/actions`
+#### 📍 重要：在哪里配置 Secrets？
 
-添加以下 Secrets：
+**所有 Secrets 都配置在 `Fridgy` 项目的 Actions secrets 中，不是在证书存储仓库中！**
 
-| Secret 名称 | 值 | 说明 |
-|------------|-----|------|
-| `MATCH_PASSWORD` | 步骤 2 生成的密码 | 用于加密证书 |
-| `MATCH_GIT_URL` | `https://github.com/你的用户名/certificates.git` | 证书存储仓库 URL（可选，默认会自动生成） |
-| `MATCH_GIT_BASIC_AUTHORIZATION` | `用户名:个人访问令牌` | 如果使用私有仓库，需要 Git 访问令牌（可选） |
+**原因：**
+- ✅ GitHub Actions workflow 在 `Fridgy` 项目中运行
+- ✅ fastlane match 需要这些 secrets 来访问证书仓库和创建证书
+- ✅ 证书存储仓库只是一个存储位置，不需要配置 secrets
+
+#### 🔗 访问 Secrets 页面
+
+访问：`https://github.com/yioyiu/Fridgy/settings/secrets/actions`
+
+或者：
+1. 访问你的 Fridgy 仓库：`https://github.com/yioyiu/Fridgy`
+2. 点击 **Settings**（设置）标签页
+3. 左侧菜单选择 **Secrets and variables** → **Actions**
+4. 点击 **New repository secret**（新建仓库密钥）
+
+#### 📝 需要配置的 Secrets
+
+添加以下 Secrets 到 **Fridgy 项目**：
+
+| Secret 名称 | 值 | 说明 | 必需 |
+|------------|-----|------|------|
+| `MATCH_PASSWORD` | 步骤 2 生成的密码 | 用于加密证书 | ✅ 必需 |
+| `MATCH_GIT_URL` | `https://github.com/yioyiu/certificates.git` | 证书存储仓库 URL | ⚠️ 可选（默认会自动生成） |
+| `MATCH_GIT_BASIC_AUTHORIZATION` | `yioyiu:你的Git访问令牌` | 如果使用私有仓库，需要 Git 访问令牌 | ⚠️ 可选（私有仓库需要） |
+
+#### ⚠️ 注意事项
+
+- ❌ **不要**在证书存储仓库（certificates）中配置这些 secrets
+- ✅ **只在** Fridgy 项目中配置这些 secrets
+- ✅ 证书存储仓库可以是空的，fastlane match 会自动创建文件
 
 **如何获取 Git 访问令牌（如果使用私有仓库）：**
 
