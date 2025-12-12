@@ -77,7 +77,19 @@ jobs:
       - name: Get Team ID from ExportOptions.plist
         id: get_team_id
         run: |
-          TEAM_ID=$(grep -A 1 '<key>teamID</key>' ios/ExportOptions.plist | grep '<string>' | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
+          # 使用 plutil 提取 Team ID（更可靠）
+          if command -v plutil &> /dev/null; then
+            TEAM_ID=$(plutil -extract teamID raw ios/ExportOptions.plist)
+          else
+            # 备用方法：使用 sed
+            TEAM_ID=$(sed -n '/<key>teamID<\/key>/,/<string>/p' ios/ExportOptions.plist | grep '<string>' | sed 's/.*<string>\(.*\)<\/string>.*/\1/' | tr -d ' ')
+          fi
+          
+          if [ -z "$TEAM_ID" ] || [ "$TEAM_ID" = "YOUR_TEAM_ID" ]; then
+            echo "::error::Team ID not found or not configured in ios/ExportOptions.plist"
+            exit 1
+          fi
+          
           echo "team_id=$TEAM_ID" >> $GITHUB_OUTPUT
           echo "Team ID: $TEAM_ID"
 
