@@ -3,13 +3,6 @@ name: iOS Build
 on:
   push:
     branches: [master, main]
-    paths:
-      - 'app.json'
-      - 'package.json'
-      - 'ios/**'
-      - '.github/workflows/ios-build.yml'
-      - 'src/**'
-      - 'app/**'
   workflow_dispatch:
     inputs:
       build_type:
