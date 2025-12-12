@@ -1,0 +1,135 @@
+name: iOS Build (Native Xcode)
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'app.json'
+      - 'package.json'
+      - 'ios/**'
+      - '.github/workflows/ios-build-native.yml'
+      - 'src/**'
+      - 'app/**'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (development/preview/production)'
+        required: false
+        default: 'production'
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build iOS App with Xcode
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --silent
+
+      - name: Setup Expo CLI
+        run: npm install -g @expo/cli@latest
+
+      - name: Prebuild iOS project
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          pod install
+          cd ..
+
+      - name: Bump iOS build number
+        run: |
+          if ! npm run bump:ios-build; then
+            echo "::warning::Failed to bump iOS build number, continuing with existing build number"
+          fi
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build Archive
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          xcodebuild -workspace ios/Fridgy.xcworkspace \
+            -scheme Fridgy \
+            -configuration Release \
+            -archivePath build/Fridgy.xcarchive \
+            -allowProvisioningUpdates \
+            archive
+
+      - name: Export IPA
+        run: |
+          # 检查 ExportOptions.plist 是否存在
+          if [ ! -f ios/ExportOptions.plist ]; then
+            echo "::error::ExportOptions.plist not found. Please create it from ExportOptions.plist.example"
+            echo "::error::Make sure to replace YOUR_TEAM_ID with your actual Team ID"
+            exit 1
+          fi
+          
+          # 检查 Team ID 是否已配置
+          if grep -q "YOUR_TEAM_ID" ios/ExportOptions.plist; then
+            echo "::error::Please replace YOUR_TEAM_ID in ios/ExportOptions.plist with your actual Team ID"
+            echo "::error::Get your Team ID from https://developer.apple.com/account"
+            exit 1
+          fi
+          
+          xcodebuild -exportArchive \
+            -archivePath build/Fridgy.xcarchive \
+            -exportPath build \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -allowProvisioningUpdates
+
+      - name: Verify IPA file
+        run: |
+          if [ ! -f build/Fridgy.ipa ]; then
+            echo "::error::IPA file not found after export"
+            exit 1
+          fi
+          echo "IPA file size: $(du -h build/Fridgy.ipa | cut -f1)"
+
+      - name: Upload to App Store Connect
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-path: build/Fridgy.ipa
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-${{ github.run_number }}
+          path: build/Fridgy.ipa
+          retention-days: 30
+
+      - name: Build summary
+        if: success()
+        run: |
+          echo "## 🍎 iOS Build Complete (GitHub Actions)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Number**: $(grep -A 1 '"buildNumber"' app.json | tail -1 | sed 's/.*"\(.*\)".*/\1/')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Type**: ${{ github.event.inputs.build_type || 'production' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact**: ios-build-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+

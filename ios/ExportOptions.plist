@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store</string>
+    <key>teamID</key>
+    <string>Y84AHQ72PP</string>
+    <!-- 
+    请将 YOUR_TEAM_ID 替换为你的 Apple Developer Team ID
+    获取方式：
+    1. 访问 https://developer.apple.com/account
+    2. 登录后，点击右上角账号名称
+    3. 查看 Team ID（格式：ABC123DEFG）
+    -->
+    <key>uploadBitcode</key>
+    <false/>
+    <key>uploadSymbols</key>
+    <true/>
+    <key>compileBitcode</key>
+    <false/>
+    <key>signingStyle</key>
+    <string>automatic</string>
+</dict>
+</plist>
+
