@@ -161,15 +161,19 @@ jobs:
           # 创建 fastlane 目录
           mkdir -p fastlane
           
-          # 创建或更新 Matchfile
-          cat > fastlane/Matchfile << EOF
-          git_url("${{ secrets.MATCH_GIT_URL || format('https://github.com/{0}/certificates.git', github.repository_owner) }}")
+          # 创建或更新 Matchfile（如果不存在）
+          if [ ! -f fastlane/Matchfile ]; then
+            cat > fastlane/Matchfile << EOF
+          git_url("${{ secrets.MATCH_GIT_URL || 'https://github.com/yioyiu/fridgy-certificates.git' }}")
           storage_mode("git")
           type("appstore")
           app_identifier("com.fridgy.app")
           username("$APPLE_ID")
           team_id("${{ steps.get_team_id.outputs.team_id }}")
           EOF
+          else
+            echo "Matchfile already exists, using existing configuration"
+          fi
           
           echo "Matchfile created:"
           cat fastlane/Matchfile

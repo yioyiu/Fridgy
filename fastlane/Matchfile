@@ -2,9 +2,8 @@
 # 用于自动管理 iOS 证书和 provisioning profiles
 
 # Git 仓库 URL（用于存储证书）
-# 默认使用：https://github.com/你的用户名/certificates.git
-# 你可以创建私有仓库来存储证书
-git_url("https://github.com/yioyiu/certificates.git")
+# 你的证书存储仓库
+git_url("https://github.com/yioyiu/fridgy-certificates.git")
 
 # 存储模式：git
 storage_mode("git")
