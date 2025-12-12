@@ -1,0 +1,305 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'app.json'
+      - 'package.json'
+      - 'ios/**'
+      - '.github/workflows/ios-build.yml'
+      - 'src/**'
+      - 'app/**'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (development/preview/production)'
+        required: false
+        default: 'production'
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build iOS App with Xcode
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          echo "Installing dependencies..."
+          # Try npm ci first, fallback to npm install if it fails
+          npm ci || {
+            echo "npm ci failed (package.json and package-lock.json out of sync)"
+            echo "Falling back to npm install..."
+            npm install
+          }
+
+      - name: Setup Expo CLI
+        run: npm install -g @expo/cli@latest
+
+      - name: Backup ExportOptions.plist
+        run: |
+          if [ -f ios/ExportOptions.plist ]; then
+            mkdir -p .backup
+            cp ios/ExportOptions.plist .backup/ExportOptions.plist
+            echo "ExportOptions.plist backed up"
+          else
+            echo "::warning::ExportOptions.plist not found before prebuild"
+          fi
+
+      - name: Prebuild iOS project
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Restore ExportOptions.plist
+        run: |
+          if [ -f .backup/ExportOptions.plist ]; then
+            cp .backup/ExportOptions.plist ios/ExportOptions.plist
+            echo "ExportOptions.plist restored"
+          else
+            echo "::error::ExportOptions.plist backup not found"
+            exit 1
+          fi
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          pod install
+          cd ..
+
+      - name: Bump iOS build number
+        run: |
+          if ! npm run bump:ios-build; then
+            echo "::warning::Failed to bump iOS build number, continuing with existing build number"
+          fi
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Get Team ID from ExportOptions.plist
+        id: get_team_id
+        run: |
+          # 检查文件是否存在
+          if [ ! -f ios/ExportOptions.plist ]; then
+            echo "::error::ExportOptions.plist not found at ios/ExportOptions.plist"
+            echo "Please ensure the file is committed to Git"
+            exit 1
+          fi
+          
+          # 使用 plutil 提取 Team ID（静默错误）
+          TEAM_ID=""
+          if command -v plutil &> /dev/null; then
+            TEAM_ID=$(plutil -extract teamID raw ios/ExportOptions.plist 2>&1)
+            # 检查是否是错误信息
+            if [[ "$TEAM_ID" == *"Error"* ]] || [[ "$TEAM_ID" == *"error"* ]]; then
+              TEAM_ID=""
+            fi
+          fi
+          
+          # 如果 plutil 失败，使用 grep + sed 备用方法
+          if [ -z "$TEAM_ID" ]; then
+            TEAM_ID=$(grep -A 1 '<key>teamID</key>' ios/ExportOptions.plist | grep '<string>' | sed -E 's/.*<string>([^<]*)<\/string>.*/\1/' | tr -d '[:space:]')
+          fi
+          
+          # 验证 Team ID 格式（应该是 10 个字符的字母数字组合）
+          if [ -z "$TEAM_ID" ] || [ "$TEAM_ID" = "YOUR_TEAM_ID" ] || [ ${#TEAM_ID} -lt 8 ]; then
+            echo "::error::Team ID not found or invalid in ios/ExportOptions.plist"
+            echo "Extracted value: '$TEAM_ID'"
+            echo "File content:"
+            cat ios/ExportOptions.plist
+            exit 1
+          fi
+          
+          echo "team_id=$TEAM_ID" >> $GITHUB_OUTPUT
+          echo "Team ID extracted: $TEAM_ID"
+
+      - name: Install fastlane
+        run: |
+          sudo gem install fastlane -NV
+          fastlane --version
+
+      - name: Setup fastlane match
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+        run: |
+          # fastlane match 会自动管理证书和 provisioning profiles
+          # 不需要 Mac，完全在 GitHub Actions 中自动化
+          
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+            echo "::error::Apple ID credentials are required"
+            echo "::error::Please configure APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD secrets"
+            exit 1
+          fi
+          
+          if [ -z "$MATCH_PASSWORD" ]; then
+            echo "::error::MATCH_PASSWORD is required for fastlane match"
+            echo "::error::Please configure MATCH_PASSWORD secret (used to encrypt certificates)"
+            exit 1
+          fi
+          
+          # 创建 fastlane 目录
+          mkdir -p fastlane
+          
+          # 确定 git_url
+          GIT_URL="${{ secrets.MATCH_GIT_URL }}"
+          if [ -z "$GIT_URL" ]; then
+            GIT_URL="https://github.com/yioyiu/fridgy-certificates.git"
+          fi
+          
+          echo "Using git_url: $GIT_URL"
+          
+          # 更新 Matchfile（覆盖以确保使用正确的配置）
+          cat > fastlane/Matchfile << EOF
+git_url("$GIT_URL")
+storage_mode("git")
+type("appstore")
+app_identifier("com.fridgy.app")
+username("$APPLE_ID")
+team_id("${{ steps.get_team_id.outputs.team_id }}")
+EOF
+          
+          echo "Matchfile created:"
+          cat fastlane/Matchfile
+          
+          # 验证 Matchfile 格式
+          if ! grep -q "git_url" fastlane/Matchfile; then
+            echo "::error::Failed to create Matchfile with git_url"
+            exit 1
+          fi
+
+      - name: Run fastlane match to sync certificates
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+        run: |
+          # 运行 fastlane match 来同步证书和 profiles
+          # 如果是第一次运行，match 会自动创建证书和 profiles
+          # 如果证书已存在，match 会下载并使用它们
+          
+          echo "Current directory: $(pwd)"
+          echo "Matchfile location: fastlane/Matchfile"
+          echo "Matchfile contents:"
+          cat fastlane/Matchfile
+          
+          # 设置 Git 凭据（如果需要）
+          if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
+            # 如果使用私有仓库，需要设置 Git 凭据
+            GIT_URL=$(grep 'git_url' fastlane/Matchfile | sed 's/.*git_url("\(.*\)").*/\1/')
+            echo "Extracted git_url: $GIT_URL"
+            GIT_HOST=$(echo "$GIT_URL" | sed 's|https\?://\([^/]*\).*|\1|')
+            echo "Git host: $GIT_HOST"
+            echo "https://$MATCH_GIT_BASIC_AUTHORIZATION@$GIT_HOST" > ~/.git-credentials
+            git config --global credential.helper store
+            echo "Git credentials configured"
+          fi
+          
+          # 进入 ios 目录运行 match
+          cd ios
+          
+          echo "Running fastlane match appstore (readonly)..."
+          fastlane match appstore --readonly || {
+            echo "::warning::fastlane match readonly failed, trying to create certificates..."
+            echo "Running fastlane match appstore (create mode)..."
+            # 如果是第一次，需要创建证书
+            fastlane match appstore
+          }
+          
+          cd ..
+
+      - name: Build Archive
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          # 使用 xcodebuild 构建
+          # fastlane match 已经配置好了证书和 profiles，使用手动签名
+          xcodebuild -workspace ios/Fridgy.xcworkspace \
+            -scheme Fridgy \
+            -configuration Release \
+            -archivePath build/Fridgy.xcarchive \
+            DEVELOPMENT_TEAM="${{ steps.get_team_id.outputs.team_id }}" \
+            CODE_SIGN_STYLE="Manual" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            archive 2>&1 | tee build.log || {
+              echo "::error::Build failed. Checking logs..."
+              tail -100 build.log
+              exit 1
+            }
+
+      - name: Export IPA
+        run: |
+          # 检查 ExportOptions.plist 是否存在
+          if [ ! -f ios/ExportOptions.plist ]; then
+            echo "::error::ExportOptions.plist not found. Please create it from ExportOptions.plist.example"
+            echo "::error::Make sure to replace YOUR_TEAM_ID with your actual Team ID"
+            exit 1
+          fi
+          
+          # 检查 Team ID 是否已配置
+          if grep -q "YOUR_TEAM_ID" ios/ExportOptions.plist; then
+            echo "::error::Please replace YOUR_TEAM_ID in ios/ExportOptions.plist with your actual Team ID"
+            echo "::error::Get your Team ID from https://developer.apple.com/account"
+            exit 1
+          fi
+          
+          xcodebuild -exportArchive \
+            -archivePath build/Fridgy.xcarchive \
+            -exportPath build \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -allowProvisioningUpdates
+
+      - name: Verify IPA file
+        run: |
+          if [ ! -f build/Fridgy.ipa ]; then
+            echo "::error::IPA file not found after export"
+            exit 1
+          fi
+          echo "IPA file size: $(du -h build/Fridgy.ipa | cut -f1)"
+
+      - name: Upload to App Store Connect
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-path: build/Fridgy.ipa
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-${{ github.run_number }}
+          path: build/Fridgy.ipa
+          retention-days: 30
+
+      - name: Build summary
+        if: success()
+        run: |
+          echo "## 🍎 iOS Build Complete (GitHub Actions)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Number**: $(grep -A 1 '"buildNumber"' app.json | tail -1 | sed 's/.*"\(.*\)".*/\1/')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Type**: ${{ github.event.inputs.build_type || 'production' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact**: ios-build-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+
