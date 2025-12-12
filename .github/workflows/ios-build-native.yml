@@ -161,22 +161,32 @@ jobs:
           # 创建 fastlane 目录
           mkdir -p fastlane
           
-          # 创建或更新 Matchfile（如果不存在）
-          if [ ! -f fastlane/Matchfile ]; then
-            cat > fastlane/Matchfile << EOF
-          git_url("${{ secrets.MATCH_GIT_URL || 'https://github.com/yioyiu/fridgy-certificates.git' }}")
-          storage_mode("git")
-          type("appstore")
-          app_identifier("com.fridgy.app")
-          username("$APPLE_ID")
-          team_id("${{ steps.get_team_id.outputs.team_id }}")
-          EOF
-          else
-            echo "Matchfile already exists, using existing configuration"
+          # 确定 git_url
+          GIT_URL="${{ secrets.MATCH_GIT_URL }}"
+          if [ -z "$GIT_URL" ]; then
+            GIT_URL="https://github.com/yioyiu/fridgy-certificates.git"
           fi
+          
+          echo "Using git_url: $GIT_URL"
+          
+          # 更新 Matchfile（覆盖以确保使用正确的配置）
+          cat > fastlane/Matchfile << EOF
+git_url("$GIT_URL")
+storage_mode("git")
+type("appstore")
+app_identifier("com.fridgy.app")
+username("$APPLE_ID")
+team_id("${{ steps.get_team_id.outputs.team_id }}")
+EOF
           
           echo "Matchfile created:"
           cat fastlane/Matchfile
+          
+          # 验证 Matchfile 格式
+          if ! grep -q "git_url" fastlane/Matchfile; then
+            echo "::error::Failed to create Matchfile with git_url"
+            exit 1
+          fi
 
       - name: Run fastlane match to sync certificates
         env:
@@ -185,26 +195,34 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: |
-          cd ios
-          
           # 运行 fastlane match 来同步证书和 profiles
           # 如果是第一次运行，match 会自动创建证书和 profiles
           # 如果证书已存在，match 会下载并使用它们
           
-          echo "Running fastlane match appstore..."
+          echo "Current directory: $(pwd)"
+          echo "Matchfile location: fastlane/Matchfile"
+          echo "Matchfile contents:"
+          cat fastlane/Matchfile
           
           # 设置 Git 凭据（如果需要）
           if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
             # 如果使用私有仓库，需要设置 Git 凭据
-            GIT_URL=$(grep 'git_url' ../fastlane/Matchfile | sed "s/.*git_url(\"\(.*\)\").*/\1/")
+            GIT_URL=$(grep 'git_url' fastlane/Matchfile | sed 's/.*git_url("\(.*\)").*/\1/')
+            echo "Extracted git_url: $GIT_URL"
             GIT_HOST=$(echo "$GIT_URL" | sed 's|https\?://\([^/]*\).*|\1|')
+            echo "Git host: $GIT_HOST"
             echo "https://$MATCH_GIT_BASIC_AUTHORIZATION@$GIT_HOST" > ~/.git-credentials
             git config --global credential.helper store
+            echo "Git credentials configured"
           fi
           
-          # 运行 match
+          # 进入 ios 目录运行 match
+          cd ios
+          
+          echo "Running fastlane match appstore (readonly)..."
           fastlane match appstore --readonly || {
             echo "::warning::fastlane match readonly failed, trying to create certificates..."
+            echo "Running fastlane match appstore (create mode)..."
             # 如果是第一次，需要创建证书
             fastlane match appstore
           }
