@@ -43,14 +43,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          echo "Checking package-lock.json..."
-          if [ -f package-lock.json ]; then
-            echo "package-lock.json exists, using npm ci"
-            npm ci
-          else
-            echo "package-lock.json not found, using npm install"
+          echo "Installing dependencies..."
+          # Try npm ci first, fallback to npm install if it fails
+          npm ci || {
+            echo "npm ci failed (package.json and package-lock.json out of sync)"
+            echo "Falling back to npm install..."
             npm install
-          fi
+          }
 
       - name: Setup Expo CLI
         run: npm install -g @expo/cli@latest
