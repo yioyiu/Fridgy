@@ -209,6 +209,12 @@ jobs:
             echo "Git credentials configured"
           fi
           
+          # 确保 ios/fastlane 目录存在，并复制 Matchfile 到正确位置
+          mkdir -p ios/fastlane
+          cp fastlane/Matchfile ios/fastlane/Matchfile
+          echo "Matchfile copied to ios/fastlane/Matchfile"
+          cat ios/fastlane/Matchfile
+          
           # 进入 ios 目录运行 match
           cd ios
           
