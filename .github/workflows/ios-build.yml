@@ -188,6 +188,11 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: |
+          # 清理环境变量（去除首尾空格和换行符）
+          if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
+            export MATCH_GIT_BASIC_AUTHORIZATION=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | tr -d '\n\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          fi
+          
           # 运行 fastlane match 来同步证书和 profiles
           # 如果是第一次运行，match 会自动创建证书和 profiles
           # 如果证书已存在，match 会下载并使用它们
@@ -197,16 +202,28 @@ jobs:
           echo "Matchfile contents:"
           cat fastlane/Matchfile
           
-          # 设置 Git 凭据（如果需要）
+          # 验证 MATCH_GIT_BASIC_AUTHORIZATION 格式（应该是 username:token）
           if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
-            # 如果使用私有仓库，需要设置 Git 凭据
-            GIT_URL=$(grep 'git_url' fastlane/Matchfile | sed 's/.*git_url("\(.*\)").*/\1/')
-            echo "Extracted git_url: $GIT_URL"
-            GIT_HOST=$(echo "$GIT_URL" | sed 's|https\?://\([^/]*\).*|\1|')
-            echo "Git host: $GIT_HOST"
-            echo "https://$MATCH_GIT_BASIC_AUTHORIZATION@$GIT_HOST" > ~/.git-credentials
-            git config --global credential.helper store
-            echo "Git credentials configured"
+            if [[ "$MATCH_GIT_BASIC_AUTHORIZATION" != *":"* ]]; then
+              echo "::error::MATCH_GIT_BASIC_AUTHORIZATION 格式不正确"
+              echo "::error::应该是 username:token 格式（例如：yioyiu:ghp_xxxxx）"
+              echo "::error::当前格式缺少冒号分隔符"
+              exit 1
+            else
+              AUTH_USER=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | cut -d: -f1)
+              AUTH_TOKEN_PREFIX=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | cut -d: -f2 | cut -c1-4)
+              echo "MATCH_GIT_BASIC_AUTHORIZATION 格式验证通过"
+              echo "用户名: $AUTH_USER"
+              echo "Token 前缀: $AUTH_TOKEN_PREFIX..."
+              # 验证 token 格式（GitHub token 通常以 ghp_ 开头）
+              if [[ "$AUTH_TOKEN_PREFIX" != "ghp_" ]] && [[ "$AUTH_TOKEN_PREFIX" != "github_pat_" ]]; then
+                echo "::warning::Token 格式可能不正确，GitHub token 通常以 'ghp_' 或 'github_pat_' 开头"
+              fi
+            fi
+          else
+            echo "::warning::MATCH_GIT_BASIC_AUTHORIZATION 未设置"
+            echo "::warning::如果使用私有仓库，需要配置此 secret"
+            echo "::warning::格式：username:token（例如：yioyiu:ghp_xxxxx）"
           fi
           
           # 确保 ios/fastlane 目录存在，并复制 Matchfile 到正确位置
@@ -217,6 +234,21 @@ jobs:
           
           # 进入 ios 目录运行 match
           cd ios
+          
+          # 显示环境变量状态（不显示敏感信息）
+          if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
+            AUTH_PREFIX=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | cut -d: -f1)
+            echo "MATCH_GIT_BASIC_AUTHORIZATION 已设置（用户名: $AUTH_PREFIX）"
+          else
+            echo "::warning::MATCH_GIT_BASIC_AUTHORIZATION 未设置"
+          fi
+          
+          if [ -n "$MATCH_PASSWORD" ]; then
+            echo "MATCH_PASSWORD 已设置"
+          else
+            echo "::error::MATCH_PASSWORD 未设置"
+            exit 1
+          fi
           
           echo "Running fastlane match appstore (readonly)..."
           fastlane match appstore --readonly || {
