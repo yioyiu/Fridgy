@@ -493,6 +493,36 @@ jobs:
           # 如果找到了 provisioning profile UUID，明确指定它
           PROFILE_UUID="${{ steps.run_fastlane_match.outputs.profile_uuid }}"
           
+          # 如果没有从步骤输出获取到 UUID，尝试再次查找
+          if [ -z "$PROFILE_UUID" ]; then
+            echo "::warning::No provisioning profile UUID from fastlane match step, trying to find it manually..."
+            PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+            if [ -d "$PROFILE_DIR" ]; then
+              for profile in "$PROFILE_DIR"/*.mobileprovision; do
+                if [ -f "$profile" ]; then
+                  PROFILE_CONTENT=$(security cms -D -i "$profile" 2>/dev/null)
+                  if [ -n "$PROFILE_CONTENT" ] && echo "$PROFILE_CONTENT" | grep -q "com.fridgy.app"; then
+                    PROFILE_UUID=$(echo "$PROFILE_CONTENT" | /usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin 2>/dev/null || echo "")
+                    if [ -n "$PROFILE_UUID" ]; then
+                      echo "Found profile UUID manually: $PROFILE_UUID"
+                      # 检查是否包含 Push Notifications
+                      if echo "$PROFILE_CONTENT" | grep -q "aps-environment"; then
+                        echo "✅ Profile contains Push Notifications capability"
+                      else
+                        echo "::error::Profile does NOT contain Push Notifications capability"
+                        echo "::error::Please ensure Push Notifications is enabled in Apple Developer Portal"
+                        echo "::error::Visit: https://developer.apple.com/account/resources/identifiers/list"
+                        echo "::error::Find com.fridgy.app and enable Push Notifications"
+                        exit 1
+                      fi
+                      break
+                    fi
+                  fi
+                fi
+              done
+            fi
+          fi
+          
           if [ -n "$PROFILE_UUID" ]; then
             echo "Using provisioning profile UUID: $PROFILE_UUID"
             xcodebuild -workspace ios/Fridgy.xcworkspace \
@@ -506,7 +536,18 @@ jobs:
               -allowProvisioningUpdates \
               archive 2>&1 | tee build.log
           else
-            echo "::warning::No provisioning profile UUID found, Xcode will try to find one automatically"
+            echo "::error::No provisioning profile UUID found for com.fridgy.app"
+            echo "::error::This usually means:"
+            echo "::error::1. fastlane match did not install the profile correctly, OR"
+            echo "::error::2. The profile does not contain Push Notifications capability"
+            echo "::error::"
+            echo "::error::Please check:"
+            echo "::error::1. Ensure Push Notifications is enabled in Apple Developer Portal"
+            echo "::error::   Visit: https://developer.apple.com/account/resources/identifiers/list"
+            echo "::error::   Find com.fridgy.app and enable Push Notifications"
+            echo "::error::2. Then re-run this workflow to regenerate the profile"
+            echo "::error::"
+            echo "::error::Attempting build anyway (may fail)..."
             xcodebuild -workspace ios/Fridgy.xcworkspace \
               -scheme Fridgy \
               -configuration Release \
