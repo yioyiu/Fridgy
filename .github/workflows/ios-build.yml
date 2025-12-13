@@ -189,8 +189,23 @@ jobs:
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: |
           # 清理环境变量（去除首尾空格和换行符）
+          # fastlane match 期望 base64 编码的 username:token
+          ORIGINAL_AUTH=""
           if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
-            export MATCH_GIT_BASIC_AUTHORIZATION=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | tr -d '\n\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            ORIGINAL_AUTH=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | tr -d '\n\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            
+            # 检查是否已经是 base64 编码（base64 字符串通常不包含冒号，除非是编码后的结果）
+            # 如果包含冒号且看起来像 username:token 格式，则进行 base64 编码
+            if [[ "$ORIGINAL_AUTH" == *":"* ]] && [[ "$ORIGINAL_AUTH" != *"==" ]] && [[ "$ORIGINAL_AUTH" != *"=" ]]; then
+              # 看起来是 username:token 格式，需要 base64 编码
+              echo "检测到 username:token 格式，正在转换为 base64..."
+              export MATCH_GIT_BASIC_AUTHORIZATION=$(echo -n "$ORIGINAL_AUTH" | base64)
+              echo "已转换为 base64 格式"
+            else
+              # 可能已经是 base64 编码，或者只是 token，直接使用
+              export MATCH_GIT_BASIC_AUTHORIZATION="$ORIGINAL_AUTH"
+              echo "使用原始格式（可能是 base64 或仅 token）"
+            fi
           fi
           
           # 运行 fastlane match 来同步证书和 profiles
@@ -202,23 +217,30 @@ jobs:
           echo "Matchfile contents:"
           cat fastlane/Matchfile
           
-          # 验证 MATCH_GIT_BASIC_AUTHORIZATION 格式（应该是 username:token）
+          # 验证 MATCH_GIT_BASIC_AUTHORIZATION 格式
+          # 注意：fastlane match 期望 base64 编码的 username:token
+          # 但我们也支持明文 username:token 格式（会自动转换）
           if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
-            if [[ "$MATCH_GIT_BASIC_AUTHORIZATION" != *":"* ]]; then
-              echo "::error::MATCH_GIT_BASIC_AUTHORIZATION 格式不正确"
-              echo "::error::应该是 username:token 格式（例如：yioyiu:ghp_xxxxx）"
-              echo "::error::当前格式缺少冒号分隔符"
-              exit 1
-            else
-              AUTH_USER=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | cut -d: -f1)
-              AUTH_TOKEN_PREFIX=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | cut -d: -f2 | cut -c1-4)
-              echo "MATCH_GIT_BASIC_AUTHORIZATION 格式验证通过"
-              echo "用户名: $AUTH_USER"
-              echo "Token 前缀: $AUTH_TOKEN_PREFIX..."
-              # 验证 token 格式（GitHub token 通常以 ghp_ 开头）
-              if [[ "$AUTH_TOKEN_PREFIX" != "ghp_" ]] && [[ "$AUTH_TOKEN_PREFIX" != "github_pat_" ]]; then
-                echo "::warning::Token 格式可能不正确，GitHub token 通常以 'ghp_' 或 'github_pat_' 开头"
+            # 检查是否是 base64 格式（尝试解码验证）
+            if echo "$MATCH_GIT_BASIC_AUTHORIZATION" | base64 -d > /dev/null 2>&1; then
+              DECODED=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | base64 -d 2>/dev/null)
+              if [[ "$DECODED" == *":"* ]]; then
+                AUTH_USER=$(echo "$DECODED" | cut -d: -f1)
+                echo "MATCH_GIT_BASIC_AUTHORIZATION 是 base64 编码格式"
+                echo "解码后的用户名: $AUTH_USER"
+              else
+                echo "::warning::MATCH_GIT_BASIC_AUTHORIZATION 是 base64，但解码后格式不正确"
               fi
+            elif [[ -n "$ORIGINAL_AUTH" ]] && [[ "$ORIGINAL_AUTH" == *":"* ]]; then
+              # 明文 username:token 格式（会在上面转换为 base64）
+              AUTH_USER=$(echo "$ORIGINAL_AUTH" | cut -d: -f1)
+              AUTH_TOKEN_PREFIX=$(echo "$ORIGINAL_AUTH" | cut -d: -f2 | cut -c1-4)
+              echo "MATCH_GIT_BASIC_AUTHORIZATION 是明文格式（已转换为 base64）"
+              echo "原始用户名: $AUTH_USER"
+              echo "Token 前缀: $AUTH_TOKEN_PREFIX..."
+            else
+              echo "::warning::MATCH_GIT_BASIC_AUTHORIZATION 格式未知，可能是仅 token 格式"
+              echo "::warning::建议使用 username:token 格式"
             fi
           else
             echo "::warning::MATCH_GIT_BASIC_AUTHORIZATION 未设置"
@@ -251,42 +273,58 @@ jobs:
           fi
           
           # 测试 Git 仓库访问（诊断 HTTP 400 问题）
-          if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
+          if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ] && [ -n "$ORIGINAL_AUTH" ]; then
             GIT_URL=$(grep 'git_url' fastlane/Matchfile | sed 's/.*git_url("\(.*\)").*/\1/')
             echo "Testing Git repository access manually..."
             echo "Git URL: $GIT_URL"
             
-            # 提取用户名和 token
-            AUTH_USER=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | cut -d: -f1)
-            AUTH_TOKEN=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | cut -d: -f2-)
+            # 使用原始格式（username:token）进行测试
+            # 因为 Git clone 需要明文格式，不是 base64
+            if [[ "$ORIGINAL_AUTH" == *":"* ]]; then
+              AUTH_USER=$(echo "$ORIGINAL_AUTH" | cut -d: -f1)
+              AUTH_TOKEN=$(echo "$ORIGINAL_AUTH" | cut -d: -f2-)
+            else
+              # 如果是 base64，尝试解码
+              DECODED_AUTH=$(echo "$ORIGINAL_AUTH" | base64 -d 2>/dev/null)
+              if [[ "$DECODED_AUTH" == *":"* ]]; then
+                AUTH_USER=$(echo "$DECODED_AUTH" | cut -d: -f1)
+                AUTH_TOKEN=$(echo "$DECODED_AUTH" | cut -d: -f2-)
+              else
+                echo "::warning::无法解析认证信息，跳过手动测试"
+                AUTH_USER=""
+                AUTH_TOKEN=""
+              fi
+            fi
             
             # 移除 URL 末尾的斜杠（如果有）
             GIT_URL_CLEAN=$(echo "$GIT_URL" | sed 's|/$||')
             
             # 测试手动克隆（使用临时目录）
-            TEST_DIR=$(mktemp -d)
-            echo "Testing clone to: $TEST_DIR"
-            
-            # 构建带认证的 URL
-            if [[ "$GIT_URL_CLEAN" == https://* ]]; then
-              # 对于 HTTPS URL，在 URL 中包含认证信息
-              GIT_URL_WITH_AUTH=$(echo "$GIT_URL_CLEAN" | sed "s|https://|https://$AUTH_USER:$AUTH_TOKEN@|")
-              echo "Attempting manual clone test..."
-              if git clone "$GIT_URL_WITH_AUTH" "$TEST_DIR/test-repo" 2>&1 | head -20; then
-                echo "✅ 手动 Git 克隆测试成功"
-                rm -rf "$TEST_DIR"
+            if [ -n "$AUTH_USER" ] && [ -n "$AUTH_TOKEN" ]; then
+              TEST_DIR=$(mktemp -d)
+              echo "Testing clone to: $TEST_DIR"
+              
+              # 构建带认证的 URL
+              if [[ "$GIT_URL_CLEAN" == https://* ]]; then
+                # 对于 HTTPS URL，在 URL 中包含认证信息
+                GIT_URL_WITH_AUTH=$(echo "$GIT_URL_CLEAN" | sed "s|https://|https://$AUTH_USER:$AUTH_TOKEN@|")
+                echo "Attempting manual clone test..."
+                if git clone "$GIT_URL_WITH_AUTH" "$TEST_DIR/test-repo" 2>&1 | head -20; then
+                  echo "✅ 手动 Git 克隆测试成功"
+                  rm -rf "$TEST_DIR"
+                else
+                  echo "❌ 手动 Git 克隆测试失败"
+                  echo "这可能是以下原因之一："
+                  echo "1. Token 已过期或无效"
+                  echo "2. Token 权限不足（需要 repo 权限）"
+                  echo "3. 仓库不存在或无法访问"
+                  echo "4. URL 格式有问题"
+                  rm -rf "$TEST_DIR"
+                  # 不退出，让 fastlane match 尝试，看看是否有更详细的错误信息
+                fi
               else
-                echo "❌ 手动 Git 克隆测试失败"
-                echo "这可能是以下原因之一："
-                echo "1. Token 已过期或无效"
-                echo "2. Token 权限不足（需要 repo 权限）"
-                echo "3. 仓库不存在或无法访问"
-                echo "4. URL 格式有问题"
-                rm -rf "$TEST_DIR"
-                # 不退出，让 fastlane match 尝试，看看是否有更详细的错误信息
+                echo "::warning::Git URL 不是 HTTPS 格式，跳过手动测试"
               fi
-            else
-              echo "::warning::Git URL 不是 HTTPS 格式，跳过手动测试"
             fi
           fi
           
