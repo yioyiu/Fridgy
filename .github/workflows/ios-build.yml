@@ -369,8 +369,18 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         run: |
+          # 确保 build 目录存在
+          mkdir -p build
+          
           # 使用 xcodebuild 构建
           # fastlane match 已经配置好了证书和 profiles，使用手动签名
+          echo "Starting archive build..."
+          echo "Workspace: ios/Fridgy.xcworkspace"
+          echo "Scheme: Fridgy"
+          echo "Configuration: Release"
+          echo "Archive Path: build/Fridgy.xcarchive"
+          echo "Team ID: ${{ steps.get_team_id.outputs.team_id }}"
+          
           xcodebuild -workspace ios/Fridgy.xcworkspace \
             -scheme Fridgy \
             -configuration Release \
@@ -378,14 +388,43 @@ jobs:
             DEVELOPMENT_TEAM="${{ steps.get_team_id.outputs.team_id }}" \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            archive 2>&1 | tee build.log || {
-              echo "::error::Build failed. Checking logs..."
-              tail -100 build.log
-              exit 1
-            }
+            archive 2>&1 | tee build.log
+          
+          BUILD_EXIT_CODE=${PIPESTATUS[0]}
+          
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "::error::Build failed with exit code $BUILD_EXIT_CODE"
+            echo "Last 100 lines of build log:"
+            tail -100 build.log
+            exit 1
+          fi
+          
+          # 验证 archive 是否创建成功
+          if [ ! -d build/Fridgy.xcarchive ]; then
+            echo "::error::Archive was not created despite build appearing to succeed"
+            echo "Build log (last 50 lines):"
+            tail -50 build.log
+            exit 1
+          fi
+          
+          echo "✅ Archive created successfully at build/Fridgy.xcarchive"
+          echo "Archive size: $(du -sh build/Fridgy.xcarchive | cut -f1)"
 
       - name: Export IPA
         run: |
+          # 检查 archive 是否存在
+          if [ ! -d build/Fridgy.xcarchive ]; then
+            echo "::error::Archive not found at build/Fridgy.xcarchive"
+            echo "::error::The build step may have failed. Please check the Build Archive step logs."
+            if [ -f build.log ]; then
+              echo "Build log (last 50 lines):"
+              tail -50 build.log
+            fi
+            exit 1
+          fi
+          
+          echo "Archive found at build/Fridgy.xcarchive"
+          
           # 检查 ExportOptions.plist 是否存在
           if [ ! -f ios/ExportOptions.plist ]; then
             echo "::error::ExportOptions.plist not found. Please create it from ExportOptions.plist.example"
