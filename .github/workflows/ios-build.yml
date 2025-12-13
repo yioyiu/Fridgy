@@ -477,30 +477,44 @@ jobs:
           fi
           
           if [ $PROFILE_FOUND -eq 0 ]; then
+            echo "::error::"
+            echo "::error::=========================================="
+            echo "::error::CRITICAL: NO PROVISIONING PROFILE FOUND"
+            echo "::error::=========================================="
+            echo "::error::"
             echo "::error::No provisioning profile found for com.fridgy.app"
-            echo "::error::This means fastlane match may not have installed the profile correctly"
+            echo "::error::This means fastlane match did not install the profile correctly"
+            echo "::error::"
             echo "::error::Trying to list all profiles to debug:"
             find "$PROFILE_DIR" -name "*.mobileprovision" -type f 2>/dev/null | while read p; do
               echo "Profile file: $p"
-              security cms -D -i "$p" 2>/dev/null | grep -E "(Name|UUID|application-identifier)" | head -5 || echo "Could not decode"
+              PROFILE_INFO=$(security cms -D -i "$p" 2>/dev/null)
+              if [ -n "$PROFILE_INFO" ]; then
+                echo "$PROFILE_INFO" | grep -E "(Name|UUID|application-identifier|aps-environment)" | head -10 || echo "Could not extract info"
+              else
+                echo "Could not decode"
+              fi
             done
             
             echo "::error::"
             echo "::error::=========================================="
-            echo "::error::FASTLANE MATCH FAILED TO INSTALL PROFILE"
+            echo "::error::MOST LIKELY CAUSE:"
             echo "::error::=========================================="
+            echo "::error::Push Notifications is NOT enabled in Apple Developer Portal"
             echo "::error::"
-            echo "::error::Possible causes:"
-            echo "::error::1. fastlane match authentication failed"
-            echo "::error::2. Push Notifications not enabled in Apple Developer Portal"
-            echo "::error::3. fastlane match could not create/access the profile"
-            echo "::error::"
-            echo "::error::Please check the fastlane match step output above for details"
-            echo "::error::"
-            echo "::error::To fix:"
+            echo "::error::SOLUTION:"
             echo "::error::1. Visit: https://developer.apple.com/account/resources/identifiers/list"
-            echo "::error::2. Find com.fridgy.app and enable Push Notifications"
-            echo "::error::3. Re-run this workflow"
+            echo "::error::2. Click on 'Identifiers' in the left sidebar"
+            echo "::error::3. Search for 'com.fridgy.app' or find it in the list"
+            echo "::error::4. Click on the App ID to edit it"
+            echo "::error::5. Scroll down to 'Capabilities' section"
+            echo "::error::6. Enable 'Push Notifications' checkbox"
+            echo "::error::7. Click 'Save' or 'Continue'"
+            echo "::error::8. Wait a few minutes for changes to propagate"
+            echo "::error::9. Re-run this GitHub Actions workflow"
+            echo "::error::"
+            echo "::error::After enabling Push Notifications, fastlane match will be able"
+            echo "::error::to create a provisioning profile that includes this capability."
             echo "::error::"
             # 不退出，让构建步骤也尝试，但会失败并给出更明确的错误
           else
