@@ -338,13 +338,16 @@ jobs:
           # 设置详细日志以便诊断问题
           export FASTLANE_VERBOSE=1
           
+          echo "=========================================="
+          echo "Running fastlane match appstore (readonly)..."
+          echo "=========================================="
           fastlane match appstore --readonly 2>&1 | tee /tmp/match-output.log
           MATCH_READONLY_EXIT_CODE=${PIPESTATUS[0]}
           
           if [ $MATCH_READONLY_EXIT_CODE -ne 0 ]; then
-            echo "::warning::fastlane match readonly failed"
+            echo "::warning::fastlane match readonly failed (exit code: $MATCH_READONLY_EXIT_CODE)"
             echo "查看详细错误信息："
-            tail -50 /tmp/match-output.log
+            tail -100 /tmp/match-output.log
             
             # 检查是否是认证问题
             if grep -q "400\|401\|403" /tmp/match-output.log; then
@@ -356,25 +359,38 @@ jobs:
               echo "::error::4. 仓库 URL 是否正确"
             fi
             
+            echo "=========================================="
             echo "尝试创建模式（强制更新以包含所有功能）..."
+            echo "=========================================="
             echo "Running fastlane match appstore (create mode with force)..."
             # 使用 --force 强制重新创建 profile，确保包含所有功能（如 Push Notifications）
             # 注意：这需要确保在 Apple Developer Portal 中应用已启用 Push Notifications
-            fastlane match appstore --force 2>&1 | tee /tmp/match-create.log || {
-              echo "::error::fastlane match 创建模式也失败"
-              tail -50 /tmp/match-create.log
+            fastlane match appstore --force 2>&1 | tee /tmp/match-create.log
+            MATCH_FORCE_EXIT_CODE=${PIPESTATUS[0]}
+            
+            if [ $MATCH_FORCE_EXIT_CODE -ne 0 ]; then
+              echo "::error::fastlane match 创建模式也失败 (exit code: $MATCH_FORCE_EXIT_CODE)"
+              tail -100 /tmp/match-create.log
+              echo "::error::"
               echo "::error::如果 profile 不包含 Push Notifications，请确保："
               echo "::error::1. 在 Apple Developer Portal 中为 com.fridgy.app 启用了 Push Notifications"
               echo "::error::2. 访问: https://developer.apple.com/account/resources/identifiers/list"
               echo "::error::3. 找到 com.fridgy.app，确保 Push Notifications 已启用"
-              exit 1
-            }
+              echo "::error::4. 保存更改后，重新运行此 workflow"
+              # 不退出，继续尝试查找 profile
+            else
+              echo "✅ fastlane match force mode succeeded"
+            fi
           else
             echo "✅ fastlane match readonly succeeded"
             # 即使 readonly 成功，也要检查 profile 是否包含 Push Notifications
             # 如果 profile 不包含 Push Notifications，需要强制重新创建
             echo "Checking if profile contains Push Notifications..."
           fi
+          
+          echo "=========================================="
+          echo "Fastlane match step completed"
+          echo "=========================================="
           
           # 查找并保存 provisioning profile UUID
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
@@ -468,6 +484,27 @@ jobs:
               echo "Profile file: $p"
               security cms -D -i "$p" 2>/dev/null | grep -E "(Name|UUID|application-identifier)" | head -5 || echo "Could not decode"
             done
+            
+            echo "::error::"
+            echo "::error::=========================================="
+            echo "::error::FASTLANE MATCH FAILED TO INSTALL PROFILE"
+            echo "::error::=========================================="
+            echo "::error::"
+            echo "::error::Possible causes:"
+            echo "::error::1. fastlane match authentication failed"
+            echo "::error::2. Push Notifications not enabled in Apple Developer Portal"
+            echo "::error::3. fastlane match could not create/access the profile"
+            echo "::error::"
+            echo "::error::Please check the fastlane match step output above for details"
+            echo "::error::"
+            echo "::error::To fix:"
+            echo "::error::1. Visit: https://developer.apple.com/account/resources/identifiers/list"
+            echo "::error::2. Find com.fridgy.app and enable Push Notifications"
+            echo "::error::3. Re-run this workflow"
+            echo "::error::"
+            # 不退出，让构建步骤也尝试，但会失败并给出更明确的错误
+          else
+            echo "✅ Provisioning profile found and configured successfully"
           fi
           
           cd ..
