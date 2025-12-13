@@ -250,12 +250,74 @@ jobs:
             exit 1
           fi
           
+          # 测试 Git 仓库访问（诊断 HTTP 400 问题）
+          if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
+            GIT_URL=$(grep 'git_url' fastlane/Matchfile | sed 's/.*git_url("\(.*\)").*/\1/')
+            echo "Testing Git repository access manually..."
+            echo "Git URL: $GIT_URL"
+            
+            # 提取用户名和 token
+            AUTH_USER=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | cut -d: -f1)
+            AUTH_TOKEN=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | cut -d: -f2-)
+            
+            # 移除 URL 末尾的斜杠（如果有）
+            GIT_URL_CLEAN=$(echo "$GIT_URL" | sed 's|/$||')
+            
+            # 测试手动克隆（使用临时目录）
+            TEST_DIR=$(mktemp -d)
+            echo "Testing clone to: $TEST_DIR"
+            
+            # 构建带认证的 URL
+            if [[ "$GIT_URL_CLEAN" == https://* ]]; then
+              # 对于 HTTPS URL，在 URL 中包含认证信息
+              GIT_URL_WITH_AUTH=$(echo "$GIT_URL_CLEAN" | sed "s|https://|https://$AUTH_USER:$AUTH_TOKEN@|")
+              echo "Attempting manual clone test..."
+              if git clone "$GIT_URL_WITH_AUTH" "$TEST_DIR/test-repo" 2>&1 | head -20; then
+                echo "✅ 手动 Git 克隆测试成功"
+                rm -rf "$TEST_DIR"
+              else
+                echo "❌ 手动 Git 克隆测试失败"
+                echo "这可能是以下原因之一："
+                echo "1. Token 已过期或无效"
+                echo "2. Token 权限不足（需要 repo 权限）"
+                echo "3. 仓库不存在或无法访问"
+                echo "4. URL 格式有问题"
+                rm -rf "$TEST_DIR"
+                # 不退出，让 fastlane match 尝试，看看是否有更详细的错误信息
+              fi
+            else
+              echo "::warning::Git URL 不是 HTTPS 格式，跳过手动测试"
+            fi
+          fi
+          
           echo "Running fastlane match appstore (readonly)..."
-          fastlane match appstore --readonly || {
-            echo "::warning::fastlane match readonly failed, trying to create certificates..."
+          
+          # 设置详细日志以便诊断问题
+          export FASTLANE_VERBOSE=1
+          
+          fastlane match appstore --readonly 2>&1 | tee /tmp/match-output.log || {
+            echo "::warning::fastlane match readonly failed"
+            echo "查看详细错误信息："
+            tail -50 /tmp/match-output.log
+            
+            # 检查是否是认证问题
+            if grep -q "400\|401\|403" /tmp/match-output.log; then
+              echo "::error::检测到认证错误（400/401/403）"
+              echo "::error::请检查："
+              echo "::error::1. MATCH_GIT_BASIC_AUTHORIZATION 格式是否正确（username:token）"
+              echo "::error::2. Token 是否有效且未过期"
+              echo "::error::3. Token 是否有 repo 权限"
+              echo "::error::4. 仓库 URL 是否正确"
+            fi
+            
+            echo "尝试创建模式..."
             echo "Running fastlane match appstore (create mode)..."
             # 如果是第一次，需要创建证书
-            fastlane match appstore
+            fastlane match appstore 2>&1 | tee /tmp/match-create.log || {
+              echo "::error::fastlane match 创建模式也失败"
+              tail -50 /tmp/match-create.log
+              exit 1
+            }
           }
           
           cd ..
