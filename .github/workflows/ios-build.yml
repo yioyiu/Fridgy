@@ -381,6 +381,34 @@ jobs:
           echo "Archive Path: build/Fridgy.xcarchive"
           echo "Team ID: ${{ steps.get_team_id.outputs.team_id }}"
           
+          # 查找 fastlane match 安装的 provisioning profile
+          # fastlane match 会将 profiles 安装到 ~/Library/MobileDevice/Provisioning Profiles
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          if [ -d "$PROFILE_DIR" ]; then
+            echo "Checking provisioning profiles..."
+            ls -la "$PROFILE_DIR" | head -10
+            
+            # 查找匹配的 profile（包含 com.fridgy.app）
+            MATCHING_PROFILE=$(find "$PROFILE_DIR" -name "*.mobileprovision" -type f 2>/dev/null | while read profile; do
+              if security cms -D -i "$profile" 2>/dev/null | grep -q "com.fridgy.app"; then
+                echo "$profile"
+                break
+              fi
+            done | head -1)
+            
+            if [ -n "$MATCHING_PROFILE" ]; then
+              echo "Found matching provisioning profile: $MATCHING_PROFILE"
+              # 提取 UUID
+              PROFILE_UUID=$(security cms -D -i "$MATCHING_PROFILE" 2>/dev/null | /usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin 2>/dev/null || echo "")
+              if [ -n "$PROFILE_UUID" ]; then
+                echo "Profile UUID: $PROFILE_UUID"
+                echo "Using provisioning profile: $PROFILE_UUID"
+              fi
+            fi
+          fi
+          
+          # 使用 xcodebuild 构建，让 Xcode 自动选择正确的 provisioning profile
+          # 如果 fastlane match 成功，Xcode 应该能够找到正确的 profile
           xcodebuild -workspace ios/Fridgy.xcworkspace \
             -scheme Fridgy \
             -configuration Release \
@@ -388,6 +416,7 @@ jobs:
             DEVELOPMENT_TEAM="${{ steps.get_team_id.outputs.team_id }}" \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGN_IDENTITY="Apple Distribution" \
+            -allowProvisioningUpdates \
             archive 2>&1 | tee build.log
           
           BUILD_EXIT_CODE=${PIPESTATUS[0]}
