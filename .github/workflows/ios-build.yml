@@ -338,7 +338,10 @@ jobs:
           # 设置详细日志以便诊断问题
           export FASTLANE_VERBOSE=1
           
-          fastlane match appstore --readonly 2>&1 | tee /tmp/match-output.log || {
+          fastlane match appstore --readonly 2>&1 | tee /tmp/match-output.log
+          MATCH_READONLY_EXIT_CODE=${PIPESTATUS[0]}
+          
+          if [ $MATCH_READONLY_EXIT_CODE -ne 0 ]; then
             echo "::warning::fastlane match readonly failed"
             echo "查看详细错误信息："
             tail -50 /tmp/match-output.log
@@ -354,38 +357,116 @@ jobs:
             fi
             
             echo "尝试创建模式（强制更新以包含所有功能）..."
-            echo "Running fastlane match appstore (create mode with force_for_new_devices)..."
-            # 使用 force_for_new_devices 确保 profile 包含所有功能（如 Push Notifications）
-            fastlane match appstore --force_for_new_devices 2>&1 | tee /tmp/match-create.log || {
+            echo "Running fastlane match appstore (create mode with force)..."
+            # 使用 --force 强制重新创建 profile，确保包含所有功能（如 Push Notifications）
+            # 注意：这需要确保在 Apple Developer Portal 中应用已启用 Push Notifications
+            fastlane match appstore --force 2>&1 | tee /tmp/match-create.log || {
               echo "::error::fastlane match 创建模式也失败"
               tail -50 /tmp/match-create.log
+              echo "::error::如果 profile 不包含 Push Notifications，请确保："
+              echo "::error::1. 在 Apple Developer Portal 中为 com.fridgy.app 启用了 Push Notifications"
+              echo "::error::2. 访问: https://developer.apple.com/account/resources/identifiers/list"
+              echo "::error::3. 找到 com.fridgy.app，确保 Push Notifications 已启用"
               exit 1
             }
-          }
+          else
+            echo "✅ fastlane match readonly succeeded"
+            # 即使 readonly 成功，也要检查 profile 是否包含 Push Notifications
+            # 如果 profile 不包含 Push Notifications，需要强制重新创建
+            echo "Checking if profile contains Push Notifications..."
+          fi
           
           # 查找并保存 provisioning profile UUID
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          if [ -d "$PROFILE_DIR" ]; then
-            echo "查找 provisioning profile..."
-            # 查找匹配的 profile（包含 com.fridgy.app）
-            for profile in "$PROFILE_DIR"/*.mobileprovision; do
-              if [ -f "$profile" ]; then
-                PROFILE_CONTENT=$(security cms -D -i "$profile" 2>/dev/null)
+          echo "查找 provisioning profile..."
+          echo "Profile directory: $PROFILE_DIR"
+          
+          if [ ! -d "$PROFILE_DIR" ]; then
+            echo "::warning::Provisioning Profiles directory does not exist, creating it..."
+            mkdir -p "$PROFILE_DIR"
+          fi
+          
+          echo "Listing all profiles in directory:"
+          ls -la "$PROFILE_DIR" 2>/dev/null | head -20 || echo "Directory is empty or not accessible"
+          
+          # 查找匹配的 profile（包含 com.fridgy.app）
+          PROFILE_FOUND=0
+          NEED_FORCE_RECREATE=0
+          
+          for profile in "$PROFILE_DIR"/*.mobileprovision; do
+            if [ -f "$profile" ]; then
+              echo "Checking profile: $profile"
+              PROFILE_CONTENT=$(security cms -D -i "$profile" 2>/dev/null)
+              if [ -n "$PROFILE_CONTENT" ]; then
+                # 检查是否包含 com.fridgy.app
                 if echo "$PROFILE_CONTENT" | grep -q "com.fridgy.app"; then
+                  echo "✅ Found matching profile for com.fridgy.app: $profile"
                   PROFILE_UUID=$(echo "$PROFILE_CONTENT" | /usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin 2>/dev/null || echo "")
                   if [ -n "$PROFILE_UUID" ]; then
-                    echo "Found provisioning profile UUID: $PROFILE_UUID"
-                    echo "profile_uuid=$PROFILE_UUID" >> $GITHUB_OUTPUT
+                    PROFILE_FOUND=1
+                    
                     # 检查是否包含 Push Notifications
                     if echo "$PROFILE_CONTENT" | grep -q "aps-environment"; then
                       echo "✅ Profile contains Push Notifications capability"
+                      echo "Profile UUID: $PROFILE_UUID"
+                      echo "profile_uuid=$PROFILE_UUID" >> $GITHUB_OUTPUT
+                      break
                     else
-                      echo "::warning::Profile may not contain Push Notifications capability"
+                      echo "::error::Profile does NOT contain Push Notifications capability"
+                      echo "::error::Profile UUID: $PROFILE_UUID"
+                      NEED_FORCE_RECREATE=1
+                      break
+                    fi
+                  else
+                    echo "::warning::Could not extract UUID from profile"
+                  fi
+                fi
+              else
+                echo "::warning::Could not decode profile: $profile"
+              fi
+            fi
+          done
+          
+          # 如果找到 profile 但不包含 Push Notifications，强制重新创建
+          if [ $PROFILE_FOUND -eq 1 ] && [ $NEED_FORCE_RECREATE -eq 1 ]; then
+            echo "::error::Forcing fastlane match to recreate profile with Push Notifications..."
+            fastlane match appstore --force 2>&1 | tee /tmp/match-force.log || {
+              echo "::error::Failed to force recreate profile"
+              tail -50 /tmp/match-force.log
+              echo "::error::Please ensure Push Notifications is enabled in Apple Developer Portal"
+              echo "::error::Visit: https://developer.apple.com/account/resources/identifiers/list"
+              exit 1
+            }
+            # 重新查找 profile UUID
+            echo "Re-scanning profiles after force recreation..."
+            for profile in "$PROFILE_DIR"/*.mobileprovision; do
+              if [ -f "$profile" ]; then
+                PROFILE_CONTENT=$(security cms -D -i "$profile" 2>/dev/null)
+                if [ -n "$PROFILE_CONTENT" ] && echo "$PROFILE_CONTENT" | grep -q "com.fridgy.app"; then
+                  PROFILE_UUID=$(echo "$PROFILE_CONTENT" | /usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin 2>/dev/null || echo "")
+                  if [ -n "$PROFILE_UUID" ]; then
+                    echo "Found profile UUID after recreation: $PROFILE_UUID"
+                    echo "profile_uuid=$PROFILE_UUID" >> $GITHUB_OUTPUT
+                    if echo "$PROFILE_CONTENT" | grep -q "aps-environment"; then
+                      echo "✅ Profile now contains Push Notifications capability"
+                    else
+                      echo "::error::Profile still does NOT contain Push Notifications after recreation"
+                      echo "::error::Please check Apple Developer Portal settings"
                     fi
                     break
                   fi
                 fi
               fi
+            done
+          fi
+          
+          if [ $PROFILE_FOUND -eq 0 ]; then
+            echo "::error::No provisioning profile found for com.fridgy.app"
+            echo "::error::This means fastlane match may not have installed the profile correctly"
+            echo "::error::Trying to list all profiles to debug:"
+            find "$PROFILE_DIR" -name "*.mobileprovision" -type f 2>/dev/null | while read p; do
+              echo "Profile file: $p"
+              security cms -D -i "$p" 2>/dev/null | grep -E "(Name|UUID|application-identifier)" | head -5 || echo "Could not decode"
             done
           fi
           
