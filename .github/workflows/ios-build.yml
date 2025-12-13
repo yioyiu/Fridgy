@@ -259,8 +259,12 @@ jobs:
           
           # 显示环境变量状态（不显示敏感信息）
           if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
-            AUTH_PREFIX=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | cut -d: -f1)
-            echo "MATCH_GIT_BASIC_AUTHORIZATION 已设置（用户名: $AUTH_PREFIX）"
+            if [ -n "$ORIGINAL_AUTH" ] && [[ "$ORIGINAL_AUTH" == *":"* ]]; then
+              AUTH_PREFIX=$(echo "$ORIGINAL_AUTH" | cut -d: -f1)
+              echo "MATCH_GIT_BASIC_AUTHORIZATION 已设置（用户名: $AUTH_PREFIX，已转换为 base64）"
+            else
+              echo "MATCH_GIT_BASIC_AUTHORIZATION 已设置（base64 格式）"
+            fi
           else
             echo "::warning::MATCH_GIT_BASIC_AUTHORIZATION 未设置"
           fi
