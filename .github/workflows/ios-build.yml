@@ -393,12 +393,46 @@ jobs:
             exit 1
           fi
           
-          # 检查 Team ID 是否已配置
-          if grep -q "YOUR_TEAM_ID" ios/ExportOptions.plist; then
-            echo "::error::Please replace YOUR_TEAM_ID in ios/ExportOptions.plist with your actual Team ID"
-            echo "::error::Get your Team ID from https://developer.apple.com/account"
+          # 获取 Team ID（从之前的步骤）
+          TEAM_ID="${{ steps.get_team_id.outputs.team_id }}"
+          
+          if [ -z "$TEAM_ID" ]; then
+            echo "::error::Team ID not found. Please check the Get Team ID step."
             exit 1
           fi
+          
+          echo "Using Team ID: $TEAM_ID"
+          
+          # 自动替换 ExportOptions.plist 中的 YOUR_TEAM_ID（如果存在）
+          # 只替换 <string>YOUR_TEAM_ID</string> 格式，不替换注释
+          if grep -q "<string>YOUR_TEAM_ID</string>" ios/ExportOptions.plist; then
+            echo "Replacing YOUR_TEAM_ID with actual Team ID..."
+            # macOS sed 语法
+            sed -i '' "s|<string>YOUR_TEAM_ID</string>|<string>$TEAM_ID</string>|g" ios/ExportOptions.plist
+            echo "Team ID replaced successfully"
+          fi
+          
+          # 验证 Team ID 已正确配置（检查实际的 teamID 值）
+          ACTUAL_TEAM_ID=$(grep -A 1 '<key>teamID</key>' ios/ExportOptions.plist | grep '<string>' | sed -E 's/.*<string>([^<]*)<\/string>.*/\1/' | tr -d '[:space:]')
+          
+          if [ -z "$ACTUAL_TEAM_ID" ] || [ "$ACTUAL_TEAM_ID" = "YOUR_TEAM_ID" ]; then
+            echo "::error::Team ID not properly configured in ios/ExportOptions.plist"
+            echo "::error::Current value: '$ACTUAL_TEAM_ID'"
+            echo "::error::Expected value: '$TEAM_ID'"
+            echo "File content:"
+            cat ios/ExportOptions.plist
+            exit 1
+          fi
+          
+          if [ "$ACTUAL_TEAM_ID" != "$TEAM_ID" ]; then
+            echo "::warning::Team ID mismatch. Updating to match extracted Team ID..."
+            # macOS sed 语法，使用备份文件然后删除
+            sed -i.bak "s|<string>$ACTUAL_TEAM_ID</string>|<string>$TEAM_ID</string>|g" ios/ExportOptions.plist
+            rm -f ios/ExportOptions.plist.bak
+            echo "Team ID updated from '$ACTUAL_TEAM_ID' to '$TEAM_ID'"
+          fi
+          
+          echo "ExportOptions.plist verified. Team ID: $ACTUAL_TEAM_ID"
           
           xcodebuild -exportArchive \
             -archivePath build/Fridgy.xcarchive \
