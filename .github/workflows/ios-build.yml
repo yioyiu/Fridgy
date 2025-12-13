@@ -163,14 +163,14 @@ jobs:
           echo "Using git_url: $GIT_URL"
           
           # 更新 Matchfile（覆盖以确保使用正确的配置）
-          cat > fastlane/Matchfile << EOF
-git_url("$GIT_URL")
-storage_mode("git")
-type("appstore")
-app_identifier("com.fridgy.app")
-username("$APPLE_ID")
-team_id("${{ steps.get_team_id.outputs.team_id }}")
-EOF
+          {
+            echo "git_url(\"$GIT_URL\")"
+            echo "storage_mode(\"git\")"
+            echo "type(\"appstore\")"
+            echo "app_identifier(\"com.fridgy.app\")"
+            echo "username(\"$APPLE_ID\")"
+            echo "team_id(\"${{ steps.get_team_id.outputs.team_id }}\")"
+          } > fastlane/Matchfile
           
           echo "Matchfile created:"
           cat fastlane/Matchfile
