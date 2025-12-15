@@ -1,0 +1,3020 @@
+==================================================
+软著程序鉴别材料 V1.0
+源代码首1500行
+==================================================
+
+// ============================================
+// 文件: src\app\(tabs)\SwipeLayout.tsx
+// ============================================
+
+import React, { useState } from 'react';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS } from '@/utils/constants';
+import { useI18n } from '@/utils/i18n';
+import { SwipePagesContainer } from '@/components/navigation/SwipePagesContainer';
+import OverviewScreen from './overview/index';
+import DashboardScreen from './index';
+import StatisticsScreen from './statistics/index';
+import SettingsScreen from './settings/index';
+
+export default function SwipeLayout() {
+    const { t, currentLanguage } = useI18n();
+    const [currentPage, setCurrentPage] = useState(0);
+
+    // 使用currentLanguage作为依赖确保语言变化时组件重新渲染
+    const navigationOptions = React.useMemo(() => ({
+        overview: {
+            title: t('navigation.overview'),
+            tabBarLabel: t('navigation.overview'),
+        },
+        ingredients: {
+            title: t('navigation.ingredients'),
+            tabBarLabel: t('navigation.ingredients'),
+        },
+        statistics: {
+            title: t('navigation.statistics'),
+            tabBarLabel: t('navigation.statistics'),
+        },
+        settings: {
+            title: t('navigation.settings'),
+            tabBarLabel: t('navigation.settings'),
+        },
+    }), [t, currentLanguage]);
+
+    const tabs = [
+        {
+            key: 'overview',
+            title: navigationOptions.overview.tabBarLabel,
+            icon: 'view-dashboard-variant',
+            component: OverviewScreen,
+        },
+        {
+            key: 'ingredients',
+            title: navigationOptions.ingredients.tabBarLabel,
+            icon: 'food-apple',
+            component: DashboardScreen,
+        },
+        {
+            key: 'statistics',
+            title: navigationOptions.statistics.tabBarLabel,
+            icon: 'chart-line',
+            component: StatisticsScreen,
+        },
+        {
+            key: 'settings',
+            title: navigationOptions.settings.tabBarLabel,
+            icon: 'cog',
+            component: SettingsScreen,
+        },
+    ];
+
+    const handlePageChange = (index: number) => {
+        setCurrentPage(index);
+    };
+
+    const handleTabPress = (index: number) => {
+        setCurrentPage(index);
+    };
+
+    const renderTabBar = () => (
+        <LinearGradient
+            colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.9)', 'rgba(255, 255, 255, 0.95)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tabBar}
+        >
+            {tabs.map((tab, index) => (
+                <TouchableOpacity
+                    key={tab.key}
+                    style={[
+                        styles.tabItem,
+                        currentPage === index && styles.activeTabItem,
+                    ]}
+                    onPress={() => handleTabPress(index)}
+                    activeOpacity={0.7}
+                >
+                    <MaterialCommunityIcons
+                        name={tab.icon as any}
+                        size={24}
+                        color={currentPage === index ? '#10B981' : '#6B7280'}
+                    />
+                    <Text
+                        style={[
+                            styles.tabLabel,
+                            currentPage === index && styles.activeTabLabel,
+                        ]}
+                    >
+                        {tab.title}
+                    </Text>
+                </TouchableOpacity>
+            ))}
+        </LinearGradient>
+    );
+
+    const renderPages = () => {
+        return tabs.map((tab, index) => {
+            const Component = tab.component;
+            return <Component key={tab.key} />;
+        });
+    };
+
+    return (
+        <View style={styles.container}>
+            <SwipePagesContainer
+                initialIndex={currentPage}
+                onPageChange={handlePageChange}
+            >
+                {renderPages()}
+            </SwipePagesContainer>
+
+            {renderTabBar()}
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: COLORS.background,
+    },
+    tabBar: {
+        flexDirection: 'row',
+        paddingBottom: 12,
+        paddingTop: 12,
+        paddingHorizontal: 20,
+        height: 70,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 12,
+        borderRadius: 25,
+        position: 'absolute',
+        bottom: 25,
+        left: 20,
+        right: 20,
+        zIndex: 1000,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+    },
+    tabItem: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 4,
+        position: 'relative',
+    },
+    activeTabItem: {
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        borderRadius: 20,
+        marginHorizontal: 2,
+    },
+    tabLabel: {
+        fontSize: 10,
+        fontWeight: '500',
+        marginTop: 4,
+        letterSpacing: 0.2,
+        color: '#6B7280',
+        textAlign: 'center',
+    },
+    activeTabLabel: {
+        color: '#10B981',
+        fontWeight: '600',
+    },
+});
+
+
+// ============================================
+// 文件: src\app\(tabs)\_layout.tsx
+// ============================================
+
+import React from 'react';
+import SwipeLayout from './SwipeLayout';
+
+export default function TabLayout() {
+  return <SwipeLayout />;
+}
+
+
+// ============================================
+// 文件: src\app\(tabs)\index.tsx
+// ============================================
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+  Alert,
+  TextInput,
+} from 'react-native';
+import { FAB, Searchbar, Chip } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { IngredientCard } from '@/components/ingredients/IngredientCard';
+import { QuickAddModal } from '@/components/ingredients/QuickAddModal';
+import { EditIngredientModal } from '@/components/ingredients/EditIngredientModal';
+import { useIngredientsStore } from '@/store/ingredients/slice';
+import { COLORS } from '@/utils/constants';
+import { Ingredient } from '@/utils/types/ingredient';
+import { useI18n } from '@/utils/i18n';
+
+export default function DashboardScreen() {
+  const { t } = useI18n();
+  const insets = useSafeAreaInsets();
+  const {
+    ingredients,
+    isLoading,
+    error,
+    fetchIngredients,
+    deleteIngredient,
+    markAsUsed,
+    setSearchQuery,
+    searchQuery,
+  } = useIngredientsStore();
+
+  const [quickAddVisible, setQuickAddVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+
+  // Filter ingredients based on search query and status
+  const filteredIngredients = useMemo(() => {
+    let filtered = ingredients;
+
+    // Apply status filter
+    if (selectedStatus) {
+      filtered = filtered.filter(ingredient => ingredient.status === selectedStatus);
+    }
+
+    // Apply search query filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(ingredient =>
+        ingredient.name.toLowerCase().includes(query) ||
+        ingredient.location.toLowerCase().includes(query) ||
+        (ingredient.notes && ingredient.notes.toLowerCase().includes(query))
+      );
+    }
+
+    return filtered;
+  }, [ingredients, searchQuery, selectedStatus]);
+
+  useEffect(() => {
+    // Only fetch ingredients if not already initialized
+    fetchIngredients();
+  }, [fetchIngredients]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchIngredients();
+    setRefreshing(false);
+  };
+
+
+  const handleQuickAdd = () => {
+    setQuickAddVisible(true);
+  };
+
+  const handleQuickAddSuccess = () => {
+    setQuickAddVisible(false);
+    // No need to refresh since the store is already updated
+    // fetchIngredients();
+  };
+
+  const handleEditSuccess = () => {
+    setEditModalVisible(false);
+    setEditingIngredient(null);
+    // No need to refresh since the store is already updated
+  };
+
+  const handleEditClose = () => {
+    setEditModalVisible(false);
+    setEditingIngredient(null);
+  };
+
+  const handleIngredientPress = (ingredient: Ingredient) => {
+    // TODO: Navigate to ingredient detail screen
+    console.log('Navigate to ingredient detail:', ingredient.id);
+  };
+
+  const handleEditIngredient = (ingredient: Ingredient) => {
+    setEditingIngredient(ingredient);
+    setEditModalVisible(true);
+  };
+
+  const handleMarkUsed = async (ingredient: Ingredient) => {
+    try {
+      await markAsUsed(ingredient.id);
+    } catch (error) {
+      Alert.alert(t('common.error'), t('dashboard.used'));
+    }
+  };
+
+  const handleDeleteIngredient = (ingredient: Ingredient) => {
+    Alert.alert(
+      t('common.delete'),
+      `${ingredient.name}`,
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteIngredient(ingredient.id);
+            } catch (error) {
+              Alert.alert(t('common.error'), t('common.error'));
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleStatusPress = (status: string) => {
+    if (selectedStatus === status) {
+      // If clicking the same status, clear the filter
+      setSelectedStatus(null);
+    } else {
+      // Set the new status filter
+      setSelectedStatus(status);
+    }
+  };
+
+  const renderIngredientCard = ({ item }: { item: Ingredient }) => (
+    <IngredientCard
+      ingredient={item}
+      onPress={() => handleIngredientPress(item)}
+      onEdit={() => handleEditIngredient(item)}
+      onMarkUsed={() => handleMarkUsed(item)}
+      onDelete={() => handleDeleteIngredient(item)}
+    />
+  );
+
+  const renderEmptyState = () => {
+    if (searchQuery.trim()) {
+      // Show search-specific empty state
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateTitle}>未找到搜索结果</Text>
+          <Text style={styles.emptyStateSubtitle}>
+            没有找到包含 "{searchQuery}" 的食材
+          </Text>
+        </View>
+      );
+    }
+
+    if (selectedStatus) {
+      // Show status filter empty state
+      const statusLabels = {
+        'fresh': t('dashboard.fresh'),
+        'near_expiry': t('dashboard.nearExpiry'),
+        'expired': t('dashboard.expired'),
+        'used': t('dashboard.used')
+      };
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateTitle}>没有{statusLabels[selectedStatus as keyof typeof statusLabels]}食材</Text>
+          <Text style={styles.emptyStateSubtitle}>
+            点击其他状态标签查看不同类别的食材
+          </Text>
+        </View>
+      );
+    }
+
+    // Show default empty state
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyStateTitle}>{t('dashboard.noIngredients')}</Text>
+        <Text style={styles.emptyStateSubtitle}>{t('dashboard.subtitle')}</Text>
+      </View>
+    );
+  };
+
+  const renderHeader = useCallback(() => {
+    // Use original ingredients for status counts to avoid circular dependency
+    const freshCount = ingredients.filter(i => i.status === 'fresh').length;
+    const nearExpiryCount = ingredients.filter(i => i.status === 'near_expiry').length;
+    const expiredCount = ingredients.filter(i => i.status === 'expired').length;
+    const usedCount = ingredients.filter(i => i.status === 'used').length;
+
+    return (
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <Text style={styles.title}>{t('dashboard.title')}</Text>
+          <Text style={styles.subtitle}>
+            {new Date().toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric'
+            })} • {new Date().toLocaleDateString('en-US', { weekday: 'long' })}
+          </Text>
+        </View>
+
+
+        {/* Status summary */}
+        <View style={styles.statusSummary}>
+          <TouchableOpacity
+            style={[
+              styles.statusItem,
+              selectedStatus === 'fresh' && styles.statusItemSelected
+            ]}
+            onPress={() => handleStatusPress('fresh')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.statusDot, { backgroundColor: COLORS.fresh }]} />
+            <Text style={[
+              styles.statusText,
+              selectedStatus === 'fresh' && styles.statusTextSelected
+            ]} numberOfLines={1} ellipsizeMode="tail">
+              {freshCount} {t('dashboard.fresh')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.statusItem,
+              selectedStatus === 'near_expiry' && styles.statusItemSelected
+            ]}
+            onPress={() => handleStatusPress('near_expiry')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.statusDot, { backgroundColor: COLORS.nearExpiry }]} />
+            <Text style={[
+              styles.statusText,
+              selectedStatus === 'near_expiry' && styles.statusTextSelected
+            ]} numberOfLines={1} ellipsizeMode="tail">
+              {nearExpiryCount} {t('dashboard.nearExpiry')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.statusItem,
+              selectedStatus === 'expired' && styles.statusItemSelected
+            ]}
+            onPress={() => handleStatusPress('expired')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.statusDot, { backgroundColor: COLORS.expired }]} />
+            <Text style={[
+              styles.statusText,
+              selectedStatus === 'expired' && styles.statusTextSelected
+            ]} numberOfLines={1} ellipsizeMode="tail">
+              {expiredCount} {t('dashboard.expired')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.statusItem,
+              selectedStatus === 'used' && styles.statusItemSelected
+            ]}
+            onPress={() => handleStatusPress('used')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.statusDot, { backgroundColor: COLORS.used }]} />
+            <Text style={[
+              styles.statusText,
+              selectedStatus === 'used' && styles.statusTextSelected
+            ]} numberOfLines={1} ellipsizeMode="tail">
+              {usedCount} {t('dashboard.used')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }, [t, ingredients, selectedStatus]);
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={styles.errorMessage}>{error}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <LinearGradient
+      colors={[COLORS.gradientStart, COLORS.gradientMiddle1, COLORS.gradientMiddle2, COLORS.gradientMiddle3, COLORS.gradientEnd]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
+      <View style={{ height: insets.top }} />
+      <View style={styles.searchHeader}>
+        <View style={styles.searchBar}>
+          <MaterialCommunityIcons
+            name="magnify"
+            size={20}
+            color={COLORS.textSecondary}
+            style={styles.searchIcon}
+          />
+          <TextInput
+            placeholder=""
+            placeholderTextColor={COLORS.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchInput}
+          />
+        </View>
+      </View>
+
+      <FlatList
+        data={filteredIngredients}
+        renderItem={renderIngredientCard}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmptyState}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[COLORS.primary]}
+          />
+        }
+        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 140 }]}
+        showsVerticalScrollIndicator={false}
+      />
+
+      <FAB
+        icon="plus"
+        color="#FFFFFF"
+        customSize={64}
+        style={[styles.fab, { backgroundColor: '#4CAF50', left: '50%', marginLeft: -32, bottom: 95 }]}
+        onPress={handleQuickAdd}
+      />
+
+
+      <QuickAddModal
+        visible={quickAddVisible}
+        onClose={() => setQuickAddVisible(false)}
+        onSuccess={handleQuickAddSuccess}
+      />
+
+      <EditIngredientModal
+        visible={editModalVisible}
+        ingredient={editingIngredient}
+        onClose={handleEditClose}
+        onSuccess={handleEditSuccess}
+      />
+    </LinearGradient>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  searchHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 0,
+  },
+  header: {
+    padding: 16,
+    paddingBottom: 12,
+    backgroundColor: 'transparent',
+  },
+  headerTop: {
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  searchBar: {
+    marginBottom: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    elevation: 0,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    height: 45,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
+    fontWeight: '500',
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    margin: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+    height: 45,
+    lineHeight: 20,
+  },
+  statusSummary: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 12,
+    marginHorizontal: 4,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+    flexShrink: 0,
+  },
+  statusText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+    flexShrink: 1,
+    textAlign: 'center',
+  },
+  statusItemSelected: {
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  statusTextSelected: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  listContent: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 140,
+    paddingTop: 8,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 80,
+    backgroundColor: COLORS.surface,
+    marginHorizontal: 20,
+    marginVertical: 20,
+    borderRadius: 24,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  emptyStateTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 16,
+    textAlign: 'center',
+    letterSpacing: -0.3,
+  },
+  emptyStateSubtitle: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  fab: {
+    position: 'absolute',
+    margin: 24,
+    left: 0,
+    bottom: 95,
+    backgroundColor: COLORS.primary,
+    borderRadius: 32,
+    width: 64,
+    height: 64,
+    elevation: 12,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+});
+
+
+// ============================================
+// 文件: src\app\(tabs)\overview\index.tsx
+// ============================================
+
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  Modal,
+  Animated,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useIngredientsStore } from '@/store/ingredients/slice';
+import { COLORS } from '@/utils/constants';
+import { useI18n } from '@/utils/i18n';
+import { AIAnalysisModal } from '@/components/ai/AIAnalysisModal';
+import { CookingAdviceModal } from '@/components/ai/CookingAdviceModal';
+
+export default function OverviewScreen() {
+  const { ingredients, fetchIngredients, isLoading } = useIngredientsStore();
+  const { t } = useI18n();
+  const insets = useSafeAreaInsets();
+  const [aiModalVisible, setAiModalVisible] = useState(false);
+  const [cookingModalVisible, setCookingModalVisible] = useState(false);
+  const [selectionModalVisible, setSelectionModalVisible] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<string>('');
+  const [scaleValue] = useState(new Animated.Value(0));
+
+  useEffect(() => {
+    // Only fetch ingredients if not already initialized
+    fetchIngredients();
+  }, [fetchIngredients]);
+
+  const handleRefresh = async () => {
+    await fetchIngredients();
+  };
+
+  const handleItemPress = (itemName: string) => {
+    setSelectedItem(itemName);
+    setSelectionModalVisible(true);
+
+    // 弹窗动画
+    Animated.spring(scaleValue, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8,
+    }).start();
+  };
+
+  const handleCloseSelectionModal = () => {
+    Animated.spring(scaleValue, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8,
+    }).start(() => {
+      setSelectionModalVisible(false);
+      setSelectedItem('');
+    });
+  };
+
+  const handleStorageAnalysis = () => {
+    setSelectionModalVisible(false);
+    setAiModalVisible(true);
+  };
+
+  const handleCookingAdvice = () => {
+    setSelectionModalVisible(false);
+    setCookingModalVisible(true);
+  };
+
+  const handleCloseAiModal = () => {
+    setAiModalVisible(false);
+    setSelectedItem('');
+  };
+
+  const handleCloseCookingModal = () => {
+    setCookingModalVisible(false);
+    setSelectedItem('');
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'fresh':
+        return COLORS.fresh;
+      case 'near_expiry':
+        return COLORS.nearExpiry;
+      case 'expired':
+        return COLORS.expired;
+      case 'used':
+        return COLORS.used;
+      default:
+        return COLORS.textSecondary;
+    }
+  };
+
+  // Group ingredients by storage location
+  const groupedByLocation = ingredients.reduce((acc, ingredient) => {
+    const location = ingredient.location || 'Unknown Location';
+    if (!acc[location]) {
+      acc[location] = [];
+    }
+    acc[location].push(ingredient);
+    return acc;
+  }, {} as Record<string, typeof ingredients>);
+
+  return (
+    <LinearGradient
+      colors={[COLORS.gradientStart, COLORS.gradientMiddle1, COLORS.gradientMiddle2, COLORS.gradientMiddle3, COLORS.gradientEnd]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
+      <View style={{ height: insets.top }} />
+
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={handleRefresh}
+            colors={[COLORS.primary]}
+          />
+        }
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>{t('overview.title')}</Text>
+          <Text style={styles.subtitle}>
+            {t('overview.subtitle')}
+          </Text>
+        </View>
+        {Object.entries(groupedByLocation).map(([location, locationIngredients]) => (
+          <View key={location} style={styles.storageLocationBox}>
+            <View style={styles.locationHeader}>
+              <Text style={styles.storageLocationTitle}>{location}</Text>
+              <Text style={styles.itemCount}>
+                {locationIngredients.length} {locationIngredients.length !== 1 ? t('overview.items') : t('overview.item')}
+              </Text>
+            </View>
+
+            <View style={styles.itemsList}>
+              {locationIngredients.map((ingredient) => (
+                <TouchableOpacity
+                  key={ingredient.id}
+                  style={styles.itemRow}
+                  onPress={() => handleItemPress(ingredient.name)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemName}>{ingredient.name}</Text>
+                  </View>
+                  <View style={styles.itemStatus}>
+                    <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(ingredient.status) }]} />
+                    <Text style={styles.statusText}>
+                      {ingredient.status === 'fresh' && t('dashboard.fresh')}
+                      {ingredient.status === 'near_expiry' && t('dashboard.nearExpiry')}
+                      {ingredient.status === 'expired' && t('dashboard.expired')}
+                      {ingredient.status === 'used' && t('dashboard.used')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ))}
+
+        {ingredients.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>{t('dashboard.noIngredients')}</Text>
+            <Text style={styles.emptyStateSubtitle}>
+              {t('overview.subtitle')}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Selection Modal */}
+      <Modal
+        visible={selectionModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseSelectionModal}
+      >
+        <View style={styles.selectionOverlay}>
+          <TouchableOpacity
+            style={styles.selectionBackdrop}
+            activeOpacity={1}
+            onPress={handleCloseSelectionModal}
+          />
+          <Animated.View
+            style={[
+              styles.selectionModalContainer,
+              {
+                transform: [{ scale: scaleValue }]
+              }
+            ]}
+          >
+            <View style={styles.selectionHeader}>
+              <Text style={styles.selectionTitle}>{t('ai.selectAnalysisType')}</Text>
+              <Text style={styles.selectionSubtitle}>"{selectedItem}"</Text>
+            </View>
+
+            <View style={styles.selectionOptions}>
+              <TouchableOpacity
+                style={styles.selectionOption}
+                onPress={handleStorageAnalysis}
+                activeOpacity={0.7}
+              >
+                <View style={styles.optionIconContainer}>
+                  <MaterialCommunityIcons
+                    name="fridge"
+                    size={32}
+                    color={COLORS.primary}
+                  />
+                </View>
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>{t('ai.storageOption')}</Text>
+                  <Text style={styles.optionDescription}>
+                    {t('ai.storageDescription')}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={24}
+                  color={COLORS.textSecondary}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.selectionOption}
+                onPress={handleCookingAdvice}
+                activeOpacity={0.7}
+              >
+                <View style={styles.optionIconContainer}>
+                  <MaterialCommunityIcons
+                    name="chef-hat"
+                    size={32}
+                    color={COLORS.success}
+                  />
+                </View>
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>{t('ai.cookingOption')}</Text>
+                  <Text style={styles.optionDescription}>
+                    {t('ai.cookingDescription')}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={24}
+                  color={COLORS.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* AI Analysis Modal */}
+      <AIAnalysisModal
+        visible={aiModalVisible}
+        itemName={selectedItem}
+        onClose={handleCloseAiModal}
+      />
+
+      {/* Cooking Advice Modal */}
+      <CookingAdviceModal
+        visible={cookingModalVisible}
+        ingredients={[selectedItem]}
+        onClose={handleCloseCookingModal}
+      />
+    </LinearGradient>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    padding: 16,
+    paddingBottom: 12,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    fontWeight: '400',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  storageLocationBox: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    marginHorizontal: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    elevation: 2,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  locationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  storageLocationTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  itemCount: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  itemsList: {
+    gap: 12,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: COLORS.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginHorizontal: 4,
+  },
+  itemInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  itemName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  itemDetails: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  itemStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+    textTransform: 'capitalize',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 64,
+  },
+  emptyStateTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyStateSubtitle: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  // Selection Modal Styles
+  selectionOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  selectionBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  selectionModalContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    margin: 20,
+    maxWidth: 400,
+    width: '90%',
+    elevation: 10,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  selectionHeader: {
+    padding: 24,
+    paddingBottom: 16,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  selectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  selectionSubtitle: {
+    fontSize: 16,
+    color: COLORS.primary,
+    fontWeight: '500',
+  },
+  selectionOptions: {
+    padding: 16,
+  },
+  selectionOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  optionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  optionDescription: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+});
+
+
+// ============================================
+// 文件: src\app\(tabs)\settings\index.tsx
+// ============================================
+
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Switch,
+  TouchableOpacity,
+  Alert,
+  Modal,
+  Platform,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { List, Divider, Button, TextInput } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { COLORS } from '@/utils/constants';
+import { useI18n, SUPPORTED_LANGUAGES, type LanguageCode } from '@/utils/i18n';
+import { useSettingsStore } from '@/store/settings/slice';
+import { useIngredientsStore } from '@/store/ingredients/slice';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
+import { PrivacyPolicyModal } from '@/components/PrivacyPolicyModal';
+import { TermsOfServiceModal } from '@/components/TermsOfServiceModal';
+import { SupportModal } from '@/components/SupportModal';
+import { OnboardingScreen } from '@/components/onboarding';
+import { appRatingService } from '@/services/rating';
+import { dataClearService } from '@/services/data';
+import { versionChecker } from '@/services/version/versionChecker';
+import { SwipeToDelete, LongPressDelete, SimpleGradient, ClearDataModal } from '@/components/ui';
+
+// Language options
+const LANGUAGES = [
+  { code: 'en', name: 'English', nativeName: 'English' },
+  { code: 'zh', name: 'Chinese', nativeName: '中文' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español' },
+  { code: 'fr', name: 'French', nativeName: 'Français' },
+  { code: 'de', name: 'German', nativeName: 'Deutsch' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano' },
+];
+
+// 使用React.memo优化的SwitchItem组件，添加更严格的比较
+const SwitchItem = React.memo(({
+  title,
+  subtitle,
+  icon,
+  value,
+  onValueChange
+}: {
+  title: string;
+  subtitle?: string;
+  icon: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+}) => {
+  return (
+    <View style={styles.switchItemContainer}>
+      <View style={styles.switchItemLeft}>
+        <MaterialCommunityIcons
+          name={icon as any}
+          size={24}
+          color={COLORS.textSecondary}
+          style={styles.switchItemIcon}
+        />
+        <View style={styles.switchItemTextContainer}>
+          <Text style={styles.switchItemTitle}>{title}</Text>
+          {subtitle && (
+            <Text style={styles.switchItemSubtitle}>{subtitle}</Text>
+          )}
+        </View>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+        thumbColor={value ? COLORS.primary : COLORS.textDisabled}
+      />
+    </View>
+  );
+}, (prevProps, nextProps) => {
+  // 自定义比较函数，只有当实际需要的属性改变时才重新渲染
+  // 移除 onValueChange 的比较，因为函数引用可能会变化但功能相同
+  return (
+    prevProps.title === nextProps.title &&
+    prevProps.subtitle === nextProps.subtitle &&
+    prevProps.icon === nextProps.icon &&
+    prevProps.value === nextProps.value
+  );
+});
+
+// 创建独立的开关组件，避免相互影响
+const EnableNotificationsSwitch = React.memo(() => {
+  const { t } = useI18n();
+  const value = useSettingsStore(state => state.notificationsEnabled);
+  const setter = useSettingsStore(state => state.setNotificationsEnabled);
+
+  return (
+    <SwitchItem
+      title={t('settings.enableNotifications')}
+      subtitle={t('settings.notificationsSubtitle')}
+      icon="bell"
+      value={value}
+      onValueChange={setter}
+    />
+  );
+});
+
+const DailyRemindersSwitch = React.memo(() => {
+  const { t } = useI18n();
+  const value = useSettingsStore(state => state.dailyReminders);
+  const setter = useSettingsStore(state => state.setDailyReminders);
+
+  return (
+    <SwitchItem
+      title={t('settings.dailyReminders')}
+      subtitle={t('settings.dailyRemindersSubtitle')}
+      icon="clock"
+      value={value}
+      onValueChange={setter}
+    />
+  );
+});
+
+const NearExpiryAlertsSwitch = React.memo(() => {
+  const { t } = useI18n();
+  const value = useSettingsStore(state => state.nearExpiryAlerts);
+  const setter = useSettingsStore(state => state.setNearExpiryAlerts);
+
+  return (
+    <SwitchItem
+      title={t('settings.nearExpiryAlerts')}
+      subtitle={t('settings.nearExpiryAlertsSubtitle')}
+      icon="alert-circle"
+      value={value}
+      onValueChange={setter}
+    />
+  );
+});
+
+const ExpiredAlertsSwitch = React.memo(() => {
+  const { t } = useI18n();
+  const value = useSettingsStore(state => state.expiredAlerts);
+  const setter = useSettingsStore(state => state.setExpiredAlerts);
+
+  return (
+    <SwitchItem
+      title={t('settings.expiredAlerts')}
+      subtitle={t('settings.expiredAlertsSubtitle')}
+      icon="close-circle"
+      value={value}
+      onValueChange={setter}
+    />
+  );
+});
+
+const AutoSuggestExpirySwitch = React.memo(() => {
+  const { t } = useI18n();
+  const value = useSettingsStore(state => state.autoSuggestExpiry);
+  const setter = useSettingsStore(state => state.setAutoSuggestExpiry);
+
+  return (
+    <SwitchItem
+      title={t('settings.autoSuggestExpiry')}
+      subtitle={t('settings.autoSuggestExpirySubtitle')}
+      icon="calendar"
+      value={value}
+      onValueChange={setter}
+    />
+  );
+});
+
+export default function SettingsScreen() {
+  const { currentLanguage, setLanguage, t } = useI18n();
+  const insets = useSafeAreaInsets();
+  const [languageModalVisible, setLanguageModalVisible] = useState(false);
+  const [locationsModalVisible, setLocationsModalVisible] = useState(false);
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
+  const [onboardingModalVisible, setOnboardingModalVisible] = useState(false);
+  const [isClearingData, setIsClearingData] = useState(false);
+  const [useSwipeDelete, setUseSwipeDelete] = useState(false); // 控制使用滑动删除还是长按删除，暂时使用长按删除
+  const [clearDataModalVisible, setClearDataModalVisible] = useState(false);
+
+  const { ingredients, addIngredient, cleanupUsedIngredients, getCleanupableUsedIngredients } = useIngredientsStore();
+
+  // 使用选择器来避免不必要的重新渲染
+  const defaultNearExpiryDays = useSettingsStore(state => state.defaultNearExpiryDays);
+  const dailyReminderTime = useSettingsStore(state => state.dailyReminderTime);
+
+  const {
+    locations,
+    addLocation,
+    removeLocation,
+    setDefaultNearExpiryDays,
+    setDailyReminderTime
+  } = useSettingsStore();
+
+  const [newLocation, setNewLocation] = useState('');
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [selectedTime, setSelectedTime] = useState(new Date());
+
+
+  const handleSetDailyReminderTime = React.useCallback(async (time: { hour: number; minute: number }) => {
+    console.log('Setting daily reminder time:', time);
+    try {
+      await setDailyReminderTime(time);
+    } catch (error) {
+      console.error('Failed to update daily reminder time:', error);
+    }
+  }, [setDailyReminderTime]);
+
+  const handleTimePickerOpen = React.useCallback(() => {
+    // 设置当前时间为当前设置的时间
+    const currentTime = new Date();
+    currentTime.setHours(dailyReminderTime.hour, dailyReminderTime.minute, 0, 0);
+    setSelectedTime(currentTime);
+    setTimePickerVisible(true);
+  }, [dailyReminderTime]);
+
+  const handleTimeChange = React.useCallback((event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setTimePickerVisible(false);
+    }
+
+    if (selectedDate) {
+      setSelectedTime(selectedDate);
+      if (Platform.OS === 'ios') {
+        // iOS上不立即关闭，让用户确认
+      } else {
+        // Android上立即保存
+        handleSetDailyReminderTime({
+          hour: selectedDate.getHours(),
+          minute: selectedDate.getMinutes()
+        });
+      }
+    }
+  }, [handleSetDailyReminderTime]);
+
+  const handleTimeConfirm = React.useCallback(() => {
+    setTimePickerVisible(false);
+    handleSetDailyReminderTime({
+      hour: selectedTime.getHours(),
+      minute: selectedTime.getMinutes()
+    });
+  }, [selectedTime, handleSetDailyReminderTime]);
+
+
+  // 评分处理函数
+  const handleRateApp = React.useCallback(async () => {
+    try {
+      const result = await appRatingService.rateApp();
+      if (result.success) {
+        // 评分成功，显示感谢消息
+        setTimeout(() => {
+          appRatingService.showRatingSuccessMessage(t);
+        }, 1000);
+
+
+==================================================
+源代码尾1500行
+==================================================
+
+      insights: 'Perspectivas',
+      performance: 'Rendimiento',
+      comingSoon: 'Próximamente',
+      timeframe: 'Marco Temporal',
+      timeframeLabel: 'Período de Tiempo:',
+      periodWeek: 'Semana',
+      periodMonth: 'Mes',
+      periodQuarter: 'Trimestre',
+      periodYear: 'Año',
+      last7Days: 'Últimos 7 Días',
+      last30Days: 'Últimos 30 Días',
+      last90Days: 'Últimos 90 Días',
+      inInventory: 'En inventario',
+      overallQuality: 'Calidad general',
+      readyToUse: 'Listo para usar',
+      useSoon: 'Usar pronto',
+      needsDisposal: 'Necesita eliminación',
+      consumed: 'Consumido',
+      of: 'de',
+      items: 'elementos',
+      efficiencyScore: 'Puntuación de Eficiencia',
+      wasteRate: 'Tasa de Desperdicio',
+      inventoryTurnover: 'Rotación de Inventario',
+      actionRequired: 'Acción Requerida',
+      cleanupNeeded: 'Limpieza Necesaria',
+      highWasteRate: 'Alta Tasa de Desperdicio',
+      excellentManagement: 'Gestión Excelente',
+      youHave: 'Tienes',
+      itemsExpiringSoon: 'elementos que vencerán pronto. ¡Considera usarlos en tu próxima comida!',
+      itemsExpired: 'elementos vencidos. ¡Es hora de limpiar tu despensa!',
+      yourWasteRateIs: 'Tu tasa de desperdicio es',
+      considerImproving: 'Considera comprar cantidades más pequeñas o planificar mejor las comidas.',
+      planMeals: 'Planificar comidas con estos ingredientes',
+      disposeExpired: 'Eliminar elementos vencidos',
+      reviewHabits: 'Revisar hábitos de compra',
+      maintainPractices: 'Mantener prácticas actuales',
+      comingSoonTitle: 'Análisis Avanzado',
+      comingSoonChart: 'Gráficos interactivos',
+      comingSoonTrends: 'Análisis de tendencias históricas',
+      comingSoonShopping: 'Recomendaciones de compra inteligentes',
+      comingSoonCost: 'Seguimiento de costos y presupuesto',
+      comingSoonSustain: 'Métricas de sostenibilidad',
+      // Status items modal
+      noFreshItems: 'No hay artículos frescos',
+      noNearExpiryItems: 'No hay artículos próximos a vencer',
+      noExpiredItems: 'No hay artículos vencidos',
+      noUsedItems: 'No hay artículos usados',
+      checkBackLater: 'Vuelve más tarde para ver actualizaciones',
+      // Timeframe labels
+      timeframeWeek: 'Esta Semana',
+      timeframeMonth: 'Este Mes',
+      timeframeQuarter: 'Este Trimestre',
+      timeframeYear: 'Este Año',
+    },
+    // Settings
+    settings: {
+      title: 'Configuración',
+      subtitle: 'Personaliza tu experiencia',
+      notifications: 'Notificaciones',
+      enableNotifications: 'Habilitar Notificaciones',
+      notificationsSubtitle: 'Recibir notificaciones push',
+      dailyReminders: 'Recordatorios Diarios',
+      dailyRemindersSubtitle: 'Resumen matutino de elementos a usar',
+      dailyReminderTime: 'Hora de Recordatorio',
+      nearExpiryAlerts: 'Alertas de Vencimiento Próximo',
+      nearExpiryAlertsSubtitle: 'Ser notificado cuando los elementos estén por vencer',
+      expiredAlerts: 'Alertas de Elementos Vencidos',
+      expiredAlertsSubtitle: 'Ser notificado cuando los elementos hayan vencido',
+      preferences: 'Preferencias',
+      autoSuggestExpiry: 'Sugerir Vencimiento Automáticamente',
+      autoSuggestExpirySubtitle: 'Sugerir automáticamente fechas de vencimiento',
+      defaultNearExpiryDays: 'Días por Defecto de Vencimiento Próximo',
+      categories: 'Categorías',
+      categoriesSubtitle: 'Gestionar categorías de ingredientes',
+      units: 'Unidades',
+      unitsSubtitle: 'Gestionar unidades de medida',
+      locations: 'Ubicaciones',
+      locationsSubtitle: 'Gestionar ubicaciones de almacenamiento',
+      language: 'Idioma',
+      languageSubtitle: 'Selecciona tu idioma preferido',
+      dataManagement: 'Gestión de Datos',
+      exportData: 'Exportar Datos',
+      exportDataSubtitle: 'Descargar tus datos de ingredientes',
+      importData: 'Importar Datos',
+      importDataSubtitle: 'Importar ingredientes desde CSV',
+      downloadTemplate: 'Descargar Plantilla',
+      downloadTemplateSubtitle: 'Descargar archivo plantilla CSV para llenar datos',
+      templateDownloaded: 'Plantilla de importación descargada: {fileName}\n\nPor favor complete los datos según el formato de la plantilla, luego use la función de importación.',
+      templateDownloadError: 'Error al descargar la plantilla. Por favor intente de nuevo.',
+      invalidCSVFormat: 'El formato del archivo CSV es incorrecto. Asegúrese de que el archivo contenga una fila de encabezado y al menos una fila de datos.',
+      invalidCSVHeaders: 'Los encabezados del archivo CSV son incorrectos.\n\nEncabezados esperados: {expectedHeaders}\n\nPor favor descargue el archivo plantilla para ver el formato correcto.',
+      importCompletedWithErrors: 'Importación Completada (con errores)',
+      importResults: 'Importados exitosamente: {success} ingredientes\nErrores: {errors}\n\nDetalles de errores:\n{errorDetails}',
+      importSuccess: '¡Importados exitosamente {count} ingredientes!',
+      importDataError: 'Error al importar datos. Por favor verifique el formato del archivo e intente de nuevo.',
+      clearAllData: 'Limpiar Todos los Datos',
+      clearAllDataSubtitle: 'Eliminar todos los ingredientes',
+      legal: 'Legal',
+      profileSubtitle: 'Editar tu información de perfil',
+      privacyPolicy: 'Política de Privacidad',
+      privacyPolicySubtitle: 'Lee nuestra política de privacidad',
+      termsOfService: 'Términos de Servicio',
+      termsOfServiceSubtitle: 'Lee nuestros términos de servicio',
+      deleteAccount: 'Eliminar Cuenta',
+      deleteAccountSubtitle: 'Eliminar permanentemente tu cuenta',
+      about: 'Acerca de',
+      version: 'Versión',
+      support: 'Soporte',
+      supportSubtitle: 'Obtener ayuda y contactarnos',
+      forceUpdateNote: 'Esta versión contiene actualizaciones importantes, debes actualizar para continuar usando la aplicación',
+      rateApp: 'Calificar App',
+      rateAppSubtitle: 'Califícanos en la App Store',
+      footerText: 'Hecho con ❤️ para reducir el desperdicio de alimentos',
+    },
+    // Forms
+    forms: {
+      name: 'Nombre',
+      namePlaceholder: 'Ingresa el nombre del ingrediente',
+      category: 'Categoría',
+      categoryPlaceholder: 'Seleccionar categoría',
+      quantity: 'Cantidad',
+      quantityPlaceholder: 'Ingresa la cantidad',
+      unit: 'Unidad',
+      unitPlaceholder: '(Seleccionar unidad)',
+      location: 'Ubicación',
+      locationPlaceholder: 'Seleccionar ubicación de almacenamiento',
+      purchaseDate: 'Fecha de Almacenamiento',
+      expiryDate: 'Fecha de Vencimiento',
+      expiryDatePlaceholder: 'Seleccionar fecha de vencimiento',
+      notes: 'Notas',
+      notesPlaceholder: 'Agregar notas (opcional)',
+    },
+    // Categories
+    categories: {
+      dairy: 'Lácteos',
+      meat: 'Carne',
+      vegetables: 'Verduras',
+      fruits: 'Frutas',
+      grains: 'Granos',
+      beverages: 'Bebidas',
+      snacks: 'Snacks',
+      condiments: 'Condimentos',
+      frozen: 'Congelado',
+      canned: 'Enlatado',
+      other: 'Otro',
+    },
+    // Units
+    units: {
+      pieces: 'piezas',
+      grams: 'gramos',
+      kilograms: 'kilogramos',
+      ounces: 'onzas',
+      pounds: 'libras',
+      liters: 'litros',
+      milliliters: 'mililitros',
+      cups: 'tazas',
+      tablespoons: 'cucharadas',
+      teaspoons: 'cucharaditas',
+    },
+    // Locations
+    locations: {
+      fridge: 'Refrigerador',
+      freezer: 'Congelador',
+      storage: 'Almacén',
+      counter: 'Mostrador',
+    },
+  },
+  fr: {
+    // Common
+    common: {
+      save: 'Sauvegarder',
+      cancel: 'Annuler',
+      delete: 'Supprimer',
+      edit: 'Modifier',
+      add: 'Ajouter',
+      close: 'Fermer',
+      confirm: 'Confirmer',
+      loading: 'Chargement...',
+      error: 'Erreur',
+      success: 'Succès',
+      retry: 'Réessayer',
+      ok: 'OK',
+    },
+    // AI Analysis
+    ai: {
+      analyzing: 'IA analyse',
+      storageAnalysis: 'meilleures conditions de stockage',
+      analysisResult: 'Résultat de l\'Analyse IA',
+      storageTime: 'Meilleur temps de stockage',
+      storageMethod: 'Meilleure méthode de stockage',
+      storageTimeAndMethod: 'Le meilleur temps et méthode de stockage sont:',
+      dataSource: 'Source de données',
+      analysisError: 'Analyse échouée, veuillez réessayer plus tard',
+      processingError: 'Erreur survenue pendant l\'analyse',
+      storageTitle: 'Analyse de Stockage',
+      recommendation: 'Ajuster selon les conditions réelles et l\'environnement de stockage',
+    },
+    // Navigation
+    navigation: {
+      dashboard: 'Tableau de bord',
+      ingredients: 'Ingrédients',
+      overview: "Vue d'ensemble",
+      statistics: 'Statistiques',
+      settings: 'Paramètres',
+    },
+    // Dashboard
+    dashboard: {
+      title: 'Ingrédients',
+      subtitle: 'Gérez votre inventaire alimentaire',
+      addIngredient: 'Ajouter un Ingrédient',
+      searchPlaceholder: 'Rechercher des ingrédients...',
+      noIngredients: 'Aucun ingrédient trouvé',
+      statusSummary: 'Résumé du Statut',
+      fresh: 'Frais',
+      nearExpiry: 'Bientôt Périmé',
+      expired: 'Périmé',
+      used: 'Utilisé',
+      total: 'Total',
+      usedHint: 'Appuyez sur ✓ pour restaurer',
+    },
+    // Overview
+    overview: {
+      title: 'Vue d\'ensemble du Stockage',
+      subtitle: 'Organiser par emplacement',
+      fridge: 'Réfrigérateur',
+      freezer: 'Congélateur',
+      storage: 'Stockage',
+      counter: 'Comptoir',
+      noItems: 'Aucun élément dans cet emplacement',
+      items: 'éléments',
+      item: 'élément',
+    },
+    // Statistics
+    statistics: {
+      title: 'Statistiques',
+      subtitle: 'Suivez votre gestion alimentaire',
+      keyMetrics: 'Métriques Clés',
+      statusOverview: 'Vue d\'ensemble du Statut',
+      freshnessScore: 'Score de Fraîcheur',
+      totalItems: 'Total des Éléments',
+      expiringSoon: 'Bientôt Périmé',
+      recentlyUsed: 'Récemment Utilisé',
+      storageDistribution: 'Distribution du Stockage',
+      insights: 'Perspectives',
+      performance: 'Performance',
+      comingSoon: 'Bientôt Disponible',
+      timeframe: 'Période',
+      timeframeLabel: 'Période de Temps:',
+      periodWeek: 'Semaine',
+      periodMonth: 'Mois',
+      periodQuarter: 'Trimestre',
+      periodYear: 'Année',
+      last7Days: '7 Derniers Jours',
+      last30Days: '30 Derniers Jours',
+      last90Days: '90 Derniers Jours',
+      inInventory: 'En inventaire',
+      overallQuality: 'Qualité générale',
+      readyToUse: 'Prêt à utiliser',
+      useSoon: 'Utiliser bientôt',
+      needsDisposal: 'Nécessite une élimination',
+      consumed: 'Consommé',
+      of: 'de',
+      items: 'éléments',
+      efficiencyScore: 'Score d\'Efficacité',
+      wasteRate: 'Taux de Gaspillage',
+      inventoryTurnover: 'Rotation des Stocks',
+      actionRequired: 'Action Requise',
+      cleanupNeeded: 'Nettoyage Nécessaire',
+      highWasteRate: 'Taux de Gaspillage Élevé',
+      excellentManagement: 'Gestion Excellente',
+      youHave: 'Vous avez',
+      itemsExpiringSoon: 'éléments qui vont bientôt expirer. Considérez les utiliser pour votre prochain repas!',
+      itemsExpired: 'éléments expirés. Il est temps de nettoyer votre garde-manger!',
+      yourWasteRateIs: 'Votre taux de gaspillage est',
+      considerImproving: 'Considérez acheter de plus petites quantités ou mieux planifier les repas.',
+      planMeals: 'Planifier des repas avec ces ingrédients',
+      disposeExpired: 'Éliminer les éléments expirés',
+      reviewHabits: 'Examiner les habitudes d\'achat',
+      maintainPractices: 'Maintenir les pratiques actuelles',
+      comingSoonTitle: 'Analyses Avancées',
+      comingSoonChart: 'Graphiques interactifs',
+      comingSoonTrends: 'Analyse des tendances historiques',
+      comingSoonShopping: 'Recommandations d\'achat intelligentes',
+      comingSoonCost: 'Suivi des coûts et budget',
+      comingSoonSustain: 'Métriques de durabilité',
+      // Status items modal
+      noFreshItems: 'Aucun article frais',
+      noNearExpiryItems: 'Aucun article proche de l\'expiration',
+      noExpiredItems: 'Aucun article expiré',
+      noUsedItems: 'Aucun article utilisé',
+      checkBackLater: 'Revenez plus tard pour voir les mises à jour',
+      // Timeframe labels
+      timeframeWeek: 'Cette Semaine',
+      timeframeMonth: 'Ce Mois',
+      timeframeQuarter: 'Ce Trimestre',
+      timeframeYear: 'Cette Année',
+    },
+    // Settings
+    settings: {
+      title: 'Paramètres',
+      subtitle: 'Personnalisez votre expérience',
+      notifications: 'Notifications',
+      enableNotifications: 'Activer les Notifications',
+      notificationsSubtitle: 'Recevoir des notifications push',
+      dailyReminders: 'Rappels Quotidiens',
+      dailyRemindersSubtitle: 'Résumé matinal des éléments à utiliser',
+      dailyReminderTime: 'Heure de Rappel',
+      nearExpiryAlerts: 'Alertes d\'Expiration Proche',
+      nearExpiryAlertsSubtitle: 'Être notifié quand les éléments vont expirer',
+      expiredAlerts: 'Alertes d\'Éléments Expirés',
+      expiredAlertsSubtitle: 'Être notifié quand les éléments ont expiré',
+      preferences: 'Préférences',
+      autoSuggestExpiry: 'Suggérer l\'Expiration Automatiquement',
+      autoSuggestExpirySubtitle: 'Suggérer automatiquement les dates d\'expiration',
+      defaultNearExpiryDays: 'Jours par Défaut d\'Expiration Proche',
+      categories: 'Catégories',
+      categoriesSubtitle: 'Gérer les catégories d\'ingrédients',
+      units: 'Unités',
+      unitsSubtitle: 'Gérer les unités de mesure',
+      locations: 'Emplacements',
+      locationsSubtitle: 'Gérer les emplacements de stockage',
+      language: 'Langue',
+      languageSubtitle: 'Sélectionnez votre langue préférée',
+      dataManagement: 'Gestion des Données',
+      exportData: 'Exporter les Données',
+      exportDataSubtitle: 'Télécharger vos données d\'ingrédients',
+      importData: 'Importer les Données',
+      importDataSubtitle: 'Importer des ingrédients depuis CSV',
+      downloadTemplate: 'Télécharger le Modèle',
+      downloadTemplateSubtitle: 'Télécharger le fichier modèle CSV pour remplir les données',
+      templateDownloaded: 'Modèle d\'importation téléchargé : {fileName}\n\nVeuillez remplir les données selon le format du modèle, puis utilisez la fonction d\'importation.',
+      templateDownloadError: 'Erreur lors du téléchargement du modèle. Veuillez réessayer.',
+      invalidCSVFormat: 'Le format du fichier CSV est incorrect. Assurez-vous que le fichier contient une ligne d\'en-tête et au moins une ligne de données.',
+      invalidCSVHeaders: 'Les en-têtes du fichier CSV sont incorrects.\n\nEn-têtes attendus : {expectedHeaders}\n\nVeuillez télécharger le fichier modèle pour voir le format correct.',
+      importCompletedWithErrors: 'Importation Terminée (avec erreurs)',
+      importResults: 'Importés avec succès : {success} ingrédients\nErreurs : {errors}\n\nDétails des erreurs :\n{errorDetails}',
+      importSuccess: 'Importés avec succès {count} ingrédients !',
+      importDataError: 'Erreur lors de l\'importation des données. Veuillez vérifier le format du fichier et réessayer.',
+      clearAllData: 'Effacer Toutes les Données',
+      clearAllDataSubtitle: 'Supprimer tous les ingrédients',
+      legal: 'Légal',
+      profileSubtitle: 'Modifier vos informations de profil',
+      privacyPolicy: 'Politique de Confidentialité',
+      privacyPolicySubtitle: 'Lire notre politique de confidentialité',
+      termsOfService: 'Conditions d\'Utilisation',
+      termsOfServiceSubtitle: 'Lire nos conditions d\'utilisation',
+      deleteAccount: 'Supprimer le Compte',
+      deleteAccountSubtitle: 'Supprimer définitivement votre compte',
+      about: 'À Propos',
+      version: 'Version',
+      support: 'Support',
+      supportSubtitle: 'Obtenir de l\'aide et nous contacter',
+      forceUpdateNote: 'Cette version contient des mises à jour importantes, vous devez mettre à jour pour continuer à utiliser l\'application',
+      rateApp: 'Évaluer l\'App',
+      rateAppSubtitle: 'Évaluez-nous sur l\'App Store',
+      footerText: 'Fait avec ❤️ pour réduire le gaspillage alimentaire',
+    },
+    // Forms
+    forms: {
+      name: 'Nom',
+      namePlaceholder: 'Entrez le nom de l\'ingrédient',
+      category: 'Catégorie',
+      categoryPlaceholder: 'Sélectionner une catégorie',
+      quantity: 'Quantité',
+      quantityPlaceholder: 'Entrez la quantité',
+      unit: 'Unité',
+      unitPlaceholder: '(Sélectionner une unité)',
+      location: 'Emplacement',
+      locationPlaceholder: 'Sélectionner un emplacement de stockage',
+      purchaseDate: 'Date de Stockage',
+      expiryDate: 'Date d\'Expiration',
+      expiryDatePlaceholder: 'Sélectionner la date d\'expiration',
+      notes: 'Notes',
+      notesPlaceholder: 'Ajouter des notes (optionnel)',
+    },
+    // Categories
+    categories: {
+      dairy: 'Produits Laitiers',
+      meat: 'Viande',
+      vegetables: 'Légumes',
+      fruits: 'Fruits',
+      grains: 'Céréales',
+      beverages: 'Boissons',
+      snacks: 'Collations',
+      condiments: 'Condiments',
+      frozen: 'Congelé',
+      canned: 'En Conserve',
+      other: 'Autre',
+    },
+    // Units
+    units: {
+      pieces: 'pièces',
+      grams: 'grammes',
+      kilograms: 'kilogrammes',
+      ounces: 'onces',
+      pounds: 'livres',
+      liters: 'litres',
+      milliliters: 'millilitres',
+      cups: 'tasses',
+      tablespoons: 'cuillères à soupe',
+      teaspoons: 'cuillères à café',
+    },
+    // Locations
+    locations: {
+      fridge: 'Réfrigérateur',
+      freezer: 'Congélateur',
+      storage: 'Stockage',
+      counter: 'Comptoir',
+    },
+  },
+  de: {
+    // Common
+    common: {
+      save: 'Speichern',
+      cancel: 'Abbrechen',
+      delete: 'Löschen',
+      edit: 'Bearbeiten',
+      add: 'Hinzufügen',
+      close: 'Schließen',
+      confirm: 'Bestätigen',
+      loading: 'Laden...',
+      error: 'Fehler',
+      success: 'Erfolg',
+      retry: 'Wiederholen',
+      ok: 'OK',
+    },
+    // AI Analysis
+    ai: {
+      analyzing: 'KI analysiert',
+      storageAnalysis: 'beste Lagerbedingungen',
+      analysisResult: 'KI-Analyseergebnis',
+      storageTime: 'Beste Lagerzeit',
+      storageMethod: 'Beste Lagermethode',
+      storageTimeAndMethod: 'Die beste Lagerzeit und Lagermethode sind:',
+      dataSource: 'Datenquelle',
+      analysisError: 'Analyse fehlgeschlagen, bitte versuchen Sie es später erneut',
+      processingError: 'Fehler während der Analyse aufgetreten',
+      storageTitle: 'Lageranalyse',
+      recommendation: 'Anpassung basierend auf tatsächlichen Bedingungen und Lagerumgebung',
+    },
+    // Navigation
+    navigation: {
+      dashboard: 'Dashboard',
+      ingredients: 'Zutaten',
+      overview: 'Übersicht',
+      statistics: 'Statistiken',
+      settings: 'Einstellungen',
+    },
+    // Dashboard
+    dashboard: {
+      title: 'Zutaten',
+      subtitle: 'Verwalten Sie Ihre Lebensmittelbestände',
+      addIngredient: 'Zutat Hinzufügen',
+      searchPlaceholder: 'Zutaten suchen...',
+      noIngredients: 'Keine Zutaten gefunden',
+      statusSummary: 'Status-Zusammenfassung',
+      fresh: 'Frisch',
+      nearExpiry: 'Bald Abgelaufen',
+      expired: 'Abgelaufen',
+      used: 'Verwendet',
+      total: 'Gesamt',
+      usedHint: 'Tippen Sie auf ✓ zum Wiederherstellen',
+    },
+    // Overview
+    overview: {
+      title: 'Lagerübersicht',
+      subtitle: 'Nach Standort organisieren',
+      fridge: 'Kühlschrank',
+      freezer: 'Gefrierschrank',
+      storage: 'Lager',
+      counter: 'Arbeitsplatte',
+      noItems: 'Keine Artikel an diesem Standort',
+      items: 'Artikel',
+      item: 'Artikel',
+    },
+    // Statistics
+    statistics: {
+      title: 'Statistiken',
+      subtitle: 'Verfolgen Sie Ihr Lebensmittelmanagement',
+      keyMetrics: 'Schlüsselmetriken',
+      statusOverview: 'Status-Übersicht',
+      freshnessScore: 'Frische-Score',
+      totalItems: 'Gesamtartikel',
+      expiringSoon: 'Bald Abgelaufen',
+      recentlyUsed: 'Kürzlich Verwendet',
+      storageDistribution: 'Lagerverteilung',
+      insights: 'Einblicke',
+      performance: 'Leistung',
+      comingSoon: 'Demnächst',
+      timeframe: 'Zeitraum',
+      timeframeLabel: 'Zeitraum:',
+      periodWeek: 'Woche',
+      periodMonth: 'Monat',
+      periodQuarter: 'Quartal',
+      periodYear: 'Jahr',
+      last7Days: 'Letzte 7 Tage',
+      last30Days: 'Letzte 30 Tage',
+      last90Days: 'Letzte 90 Tage',
+      inInventory: 'Im Inventar',
+      overallQuality: 'Gesamtqualität',
+      readyToUse: 'Einsatzbereit',
+      useSoon: 'Bald verwenden',
+      needsDisposal: 'Entsorgung erforderlich',
+      consumed: 'Verbraucht',
+      of: 'von',
+      items: 'Artikel',
+      efficiencyScore: 'Effizienz-Score',
+      wasteRate: 'Verschwendungsrate',
+      inventoryTurnover: 'Lagerumschlag',
+      actionRequired: 'Aktion Erforderlich',
+      cleanupNeeded: 'Aufräumen Erforderlich',
+      highWasteRate: 'Hohe Verschwendungsrate',
+      excellentManagement: 'Ausgezeichnetes Management',
+      youHave: 'Sie haben',
+      itemsExpiringSoon: 'Artikel, die bald ablaufen. Erwägen Sie, sie für Ihre nächste Mahlzeit zu verwenden!',
+      itemsExpired: 'abgelaufene Artikel. Zeit, Ihre Speisekammer aufzuräumen!',
+      yourWasteRateIs: 'Ihre Verschwendungsrate ist',
+      considerImproving: 'Erwägen Sie, kleinere Mengen zu kaufen oder Mahlzeiten besser zu planen.',
+      planMeals: 'Mahlzeiten mit diesen Zutaten planen',
+      disposeExpired: 'Abgelaufene Artikel entsorgen',
+      reviewHabits: 'Einkaufsgewohnheiten überprüfen',
+      maintainPractices: 'Aktuelle Praktiken beibehalten',
+      comingSoonTitle: 'Erweiterte Analysen',
+      comingSoonChart: 'Interaktive Diagramme',
+      comingSoonTrends: 'Historische Trendanalyse',
+      comingSoonShopping: 'Intelligente Einkaufsempfehlungen',
+      comingSoonCost: 'Kostenverfolgung und Budgetierung',
+      comingSoonSustain: 'Nachhaltigkeitsmetriken',
+      // Status items modal
+      noFreshItems: 'Keine frischen Artikel',
+      noNearExpiryItems: 'Keine Artikel kurz vor Ablauf',
+      noExpiredItems: 'Keine abgelaufenen Artikel',
+      noUsedItems: 'Keine verwendeten Artikel',
+      checkBackLater: 'Schauen Sie später für Updates vorbei',
+      // Timeframe labels
+      timeframeWeek: 'Diese Woche',
+      timeframeMonth: 'Diesen Monat',
+      timeframeQuarter: 'Dieses Quartal',
+      timeframeYear: 'Dieses Jahr',
+    },
+    // Settings
+    settings: {
+      title: 'Einstellungen',
+      subtitle: 'Passen Sie Ihre Erfahrung an',
+      notifications: 'Benachrichtigungen',
+      enableNotifications: 'Benachrichtigungen Aktivieren',
+      notificationsSubtitle: 'Push-Benachrichtigungen erhalten',
+      dailyReminders: 'Tägliche Erinnerungen',
+      dailyRemindersSubtitle: 'Morgendliche Zusammenfassung der zu verwendenden Artikel',
+      dailyReminderTime: 'Erinnerungszeit',
+      nearExpiryAlerts: 'Ablauf-Warnungen',
+      nearExpiryAlertsSubtitle: 'Benachrichtigt werden, wenn Artikel bald ablaufen',
+      expiredAlerts: 'Abgelaufene Artikel-Warnungen',
+      expiredAlertsSubtitle: 'Benachrichtigt werden, wenn Artikel abgelaufen sind',
+      preferences: 'Einstellungen',
+      autoSuggestExpiry: 'Ablauf Automatisch Vorschlagen',
+      autoSuggestExpirySubtitle: 'Ablaufdaten automatisch vorschlagen',
+      defaultNearExpiryDays: 'Standard-Tage für Bald Abgelaufen',
+      categories: 'Kategorien',
+      categoriesSubtitle: 'Zutatenkategorien verwalten',
+      units: 'Einheiten',
+      unitsSubtitle: 'Maßeinheiten verwalten',
+      locations: 'Standorte',
+      locationsSubtitle: 'Lagerstandorte verwalten',
+      language: 'Sprache',
+      languageSubtitle: 'Wählen Sie Ihre bevorzugte Sprache',
+      dataManagement: 'Datenverwaltung',
+      exportData: 'Daten Exportieren',
+      exportDataSubtitle: 'Ihre Zutatendaten herunterladen',
+      importData: 'Daten Importieren',
+      importDataSubtitle: 'Zutaten aus CSV importieren',
+      downloadTemplate: 'Vorlage Herunterladen',
+      downloadTemplateSubtitle: 'CSV-Vorlagendatei herunterladen, um Daten auszufüllen',
+      templateDownloaded: 'Importvorlage heruntergeladen: {fileName}\n\nBitte füllen Sie die Daten entsprechend dem Vorlagenformat aus und verwenden Sie dann die Importfunktion.',
+      templateDownloadError: 'Fehler beim Herunterladen der Vorlage. Bitte versuchen Sie es erneut.',
+      invalidCSVFormat: 'CSV-Dateiformat ist falsch. Stellen Sie sicher, dass die Datei eine Kopfzeile und mindestens eine Datenzeile enthält.',
+      invalidCSVHeaders: 'CSV-Dateiüberschriften sind falsch.\n\nErwartete Überschriften: {expectedHeaders}\n\nBitte laden Sie die Vorlagendatei herunter, um das richtige Format zu sehen.',
+      importCompletedWithErrors: 'Import Abgeschlossen (mit Fehlern)',
+      importResults: 'Erfolgreich importiert: {success} Zutaten\nFehler: {errors}\n\nFehlerdetails:\n{errorDetails}',
+      importSuccess: 'Erfolgreich {count} Zutaten importiert!',
+      importDataError: 'Fehler beim Importieren der Daten. Bitte überprüfen Sie das Dateiformat und versuchen Sie es erneut.',
+      clearAllData: 'Alle Daten Löschen',
+      clearAllDataSubtitle: 'Alle Zutaten entfernen',
+      legal: 'Rechtliches',
+      profileSubtitle: 'Ihre Profilinformationen bearbeiten',
+      privacyPolicy: 'Datenschutzrichtlinie',
+      privacyPolicySubtitle: 'Unsere Datenschutzrichtlinie lesen',
+      termsOfService: 'Nutzungsbedingungen',
+      termsOfServiceSubtitle: 'Unsere Nutzungsbedingungen lesen',
+      deleteAccount: 'Konto Löschen',
+      deleteAccountSubtitle: 'Ihr Konto dauerhaft löschen',
+      about: 'Über',
+      version: 'Version',
+      support: 'Support',
+      supportSubtitle: 'Hilfe erhalten und uns kontaktieren',
+      forceUpdateNote: 'Diese Version enthält wichtige Updates, Sie müssen aktualisieren, um die App weiter zu verwenden',
+      rateApp: 'App Bewerten',
+      rateAppSubtitle: 'Bewerten Sie uns im App Store',
+      footerText: 'Gemacht mit ❤️ um Lebensmittelverschwendung zu reduzieren',
+    },
+    // Forms
+    forms: {
+      name: 'Name',
+      namePlaceholder: 'Zutatenname eingeben',
+      category: 'Kategorie',
+      categoryPlaceholder: 'Kategorie auswählen',
+      quantity: 'Menge',
+      quantityPlaceholder: 'Menge eingeben',
+      unit: 'Einheit',
+      unitPlaceholder: '(Einheit auswählen)',
+      location: 'Standort',
+      locationPlaceholder: 'Lagerstandort auswählen',
+      purchaseDate: 'Lagerdatum',
+      expiryDate: 'Ablaufdatum',
+      expiryDatePlaceholder: 'Ablaufdatum auswählen',
+      notes: 'Notizen',
+      notesPlaceholder: 'Notizen hinzufügen (optional)',
+    },
+    // Categories
+    categories: {
+      dairy: 'Milchprodukte',
+      meat: 'Fleisch',
+      vegetables: 'Gemüse',
+      fruits: 'Obst',
+      grains: 'Getreide',
+      beverages: 'Getränke',
+      snacks: 'Snacks',
+      condiments: 'Gewürze',
+      frozen: 'Tiefkühl',
+      canned: 'Konserven',
+      other: 'Andere',
+    },
+    // Units
+    units: {
+      pieces: 'Stück',
+      grams: 'Gramm',
+      kilograms: 'Kilogramm',
+      ounces: 'Unzen',
+      pounds: 'Pfund',
+      liters: 'Liter',
+      milliliters: 'Milliliter',
+      cups: 'Tassen',
+      tablespoons: 'Esslöffel',
+      teaspoons: 'Teelöffel',
+    },
+    // Locations
+    locations: {
+      fridge: 'Kühlschrank',
+      freezer: 'Gefrierschrank',
+      storage: 'Lager',
+      counter: 'Arbeitsplatte',
+    },
+  },
+  ja: {
+    // Common
+    common: {
+      save: '保存',
+      cancel: 'キャンセル',
+      delete: '削除',
+      edit: '編集',
+      add: '追加',
+      close: '閉じる',
+      confirm: '確認',
+      loading: '読み込み中...',
+      error: 'エラー',
+      success: '成功',
+      retry: '再試行',
+      ok: 'OK',
+    },
+    // AI Analysis
+    ai: {
+      analyzing: 'AIが分析中',
+      storageAnalysis: '最適な保存条件',
+      analysisResult: 'AI分析結果',
+      storageTime: '最適な保存時間',
+      storageMethod: '最適な保存方法',
+      storageTimeAndMethod: '最適な保存時間と保存方法は：',
+      dataSource: 'データソース',
+      analysisError: '分析に失敗しました。後でもう一度お試しください',
+      processingError: '分析中にエラーが発生しました',
+      storageTitle: '保存分析',
+      recommendation: '実際の状況と保存環境に基づいて調整してください',
+    },
+    // Navigation
+    navigation: {
+      dashboard: 'ダッシュボード',
+      ingredients: '食材',
+      overview: '概要',
+      statistics: '統計',
+      settings: '設定',
+    },
+    // Dashboard
+    dashboard: {
+      title: '食材',
+      subtitle: '食品在庫を管理',
+      addIngredient: '食材を追加',
+      searchPlaceholder: '食材を検索...',
+      noIngredients: '食材が見つかりません',
+      statusSummary: 'ステータス概要',
+      fresh: '新鮮',
+      nearExpiry: '期限間近',
+      expired: '期限切れ',
+      used: '使用済み',
+      total: '合計',
+      usedHint: '✓をタップして復元',
+    },
+    // Overview
+    overview: {
+      title: '保存概要',
+      subtitle: '場所別に整理',
+      fridge: '冷蔵庫',
+      freezer: '冷凍庫',
+      storage: '保存庫',
+      counter: 'カウンター',
+      noItems: 'この場所にアイテムがありません',
+      items: 'アイテム',
+      item: 'アイテム',
+    },
+    // Statistics
+    statistics: {
+      title: '統計',
+      subtitle: '食品管理を追跡',
+      keyMetrics: '主要指標',
+      statusOverview: 'ステータス概要',
+      freshnessScore: '鮮度スコア',
+      totalItems: '総アイテム数',
+      expiringSoon: '期限間近',
+      recentlyUsed: '最近使用',
+      storageDistribution: '保存分布',
+      insights: 'インサイト',
+      performance: 'パフォーマンス',
+      comingSoon: '近日公開',
+      timeframe: '期間',
+      timeframeLabel: '期間:',
+      periodWeek: '週',
+      periodMonth: '月',
+      periodQuarter: '四半期',
+      periodYear: '年',
+      last7Days: '過去7日',
+      last30Days: '過去30日',
+      last90Days: '過去90日',
+      inInventory: '在庫中',
+      overallQuality: '全体的な品質',
+      readyToUse: '使用可能',
+      useSoon: '早めに使用',
+      needsDisposal: '廃棄が必要',
+      consumed: '消費済み',
+      of: 'の',
+      items: 'アイテム',
+      efficiencyScore: '効率スコア',
+      wasteRate: '廃棄率',
+      inventoryTurnover: '在庫回転',
+      actionRequired: 'アクションが必要',
+      cleanupNeeded: 'クリーンアップが必要',
+      highWasteRate: '高い廃棄率',
+      excellentManagement: '優秀な管理',
+      youHave: 'あなたは',
+      itemsExpiringSoon: '個のアイテムが期限間近です。次の食事で使用することを検討してください！',
+      itemsExpired: '個の期限切れアイテムがあります。パントリーを整理する時です！',
+      yourWasteRateIs: 'あなたの廃棄率は',
+      considerImproving: '少量購入や食事計画の改善を検討してください。',
+      planMeals: 'これらの食材で食事を計画',
+      disposeExpired: '期限切れアイテムを廃棄',
+      reviewHabits: '買い物習慣を見直す',
+      maintainPractices: '現在の実践を維持',
+      comingSoonTitle: '高度な分析',
+      comingSoonChart: 'インタラクティブなチャート',
+      comingSoonTrends: '履歴トレンド分析',
+      comingSoonShopping: 'スマート買い物推奨',
+      comingSoonCost: 'コスト追跡と予算',
+      comingSoonSustain: '持続可能性指標',
+      // Status items modal
+      noFreshItems: '新鮮なアイテムはありません',
+      noNearExpiryItems: '期限間近のアイテムはありません',
+      noExpiredItems: '期限切れのアイテムはありません',
+      noUsedItems: '使用済みのアイテムはありません',
+      checkBackLater: '更新を確認するために後で戻ってきてください',
+      // Timeframe labels
+      timeframeWeek: '今週',
+      timeframeMonth: '今月',
+      timeframeQuarter: '今四半期',
+      timeframeYear: '今年',
+    },
+    // Settings
+    settings: {
+      title: '設定',
+      subtitle: '体験をカスタマイズ',
+      notifications: '通知',
+      enableNotifications: '通知を有効にする',
+      notificationsSubtitle: 'プッシュ通知を受信',
+      dailyReminders: '日次リマインダー',
+      dailyRemindersSubtitle: '使用すべきアイテムの朝の概要',
+      dailyReminderTime: 'リマインダー時間',
+      nearExpiryAlerts: '期限間近アラート',
+      nearExpiryAlertsSubtitle: 'アイテムが期限間近になったら通知',
+      expiredAlerts: '期限切れアイテムアラート',
+      expiredAlertsSubtitle: 'アイテムが期限切れになったら通知',
+      preferences: '設定',
+      autoSuggestExpiry: '期限を自動提案',
+      autoSuggestExpirySubtitle: '期限日を自動的に提案',
+      defaultNearExpiryDays: 'デフォルト期限間近日数',
+      categories: 'カテゴリ',
+      categoriesSubtitle: '食材カテゴリを管理',
+      units: '単位',
+      unitsSubtitle: '測定単位を管理',
+      locations: '場所',
+      locationsSubtitle: '保存場所を管理',
+      language: '言語',
+      languageSubtitle: 'お好みの言語を選択',
+      dataManagement: 'データ管理',
+      exportData: 'データをエクスポート',
+      exportDataSubtitle: '食材データをダウンロード',
+      importData: 'データをインポート',
+      importDataSubtitle: 'CSVから食材をインポート',
+      downloadTemplate: 'テンプレートをダウンロード',
+      downloadTemplateSubtitle: 'データを入力するためのCSVテンプレートファイルをダウンロード',
+      templateDownloaded: 'インポートテンプレートをダウンロードしました：{fileName}\n\nテンプレート形式に従ってデータを入力し、インポート機能を使用してください。',
+      templateDownloadError: 'テンプレートのダウンロード中にエラーが発生しました。再試行してください。',
+      invalidCSVFormat: 'CSVファイル形式が正しくありません。ファイルにヘッダー行と少なくとも1行のデータが含まれていることを確認してください。',
+      invalidCSVHeaders: 'CSVファイルのヘッダーが正しくありません。\n\n期待されるヘッダー：{expectedHeaders}\n\n正しい形式を確認するためにテンプレートファイルをダウンロードしてください。',
+      importCompletedWithErrors: 'インポート完了（エラーあり）',
+      importResults: '正常にインポート：{success}個の食材\nエラー：{errors}個\n\nエラー詳細：\n{errorDetails}',
+      importSuccess: '{count}個の食材を正常にインポートしました！',
+      importDataError: 'データのインポート中にエラーが発生しました。ファイル形式を確認して再試行してください。',
+      clearAllData: 'すべてのデータをクリア',
+      clearAllDataSubtitle: 'すべての食材を削除',
+      legal: '法的',
+      profileSubtitle: 'プロフィール情報を編集',
+      privacyPolicy: 'プライバシーポリシー',
+      privacyPolicySubtitle: 'プライバシーポリシーを読む',
+      termsOfService: '利用規約',
+      termsOfServiceSubtitle: '利用規約を読む',
+      deleteAccount: 'アカウントを削除',
+      deleteAccountSubtitle: 'アカウントを完全に削除',
+      about: 'について',
+      version: 'バージョン',
+      support: 'サポート',
+      supportSubtitle: 'ヘルプを取得して連絡',
+      forceUpdateNote: 'このバージョンには重要な更新が含まれています。アプリを継続使用するには更新が必要です',
+      rateApp: 'アプリを評価',
+      rateAppSubtitle: 'App Storeで評価',
+      footerText: '食品廃棄物削減のため❤️で作成',
+    },
+    // Forms
+    forms: {
+      name: '名前',
+      namePlaceholder: '食材名を入力',
+      category: 'カテゴリ',
+      categoryPlaceholder: 'カテゴリを選択',
+      quantity: '数量',
+      quantityPlaceholder: '数量を入力',
+      unit: '単位',
+      unitPlaceholder: '(単位を選択)',
+      location: '場所',
+      locationPlaceholder: '保存場所を選択',
+      purchaseDate: '保存日',
+      expiryDate: '期限日',
+      expiryDatePlaceholder: '期限日を選択',
+      notes: 'メモ',
+      notesPlaceholder: 'メモを追加（オプション）',
+    },
+    // Categories
+    categories: {
+      dairy: '乳製品',
+      meat: '肉類',
+      vegetables: '野菜',
+      fruits: '果物',
+      grains: '穀物',
+      beverages: '飲み物',
+      snacks: 'スナック',
+      condiments: '調味料',
+      frozen: '冷凍',
+      canned: '缶詰',
+      other: 'その他',
+    },
+    // Units
+    units: {
+      pieces: '個',
+      grams: 'グラム',
+      kilograms: 'キログラム',
+      ounces: 'オンス',
+      pounds: 'ポンド',
+      liters: 'リットル',
+      milliliters: 'ミリリットル',
+      cups: 'カップ',
+      tablespoons: '大さじ',
+      teaspoons: '小さじ',
+    },
+    // Locations
+    locations: {
+      fridge: '冷蔵庫',
+      freezer: '冷凍庫',
+      storage: '保存庫',
+      counter: 'カウンター',
+    },
+  },
+  ko: {
+    // Common
+    common: {
+      save: '저장',
+      cancel: '취소',
+      delete: '삭제',
+      edit: '편집',
+      add: '추가',
+      close: '닫기',
+      confirm: '확인',
+      loading: '로딩 중...',
+      error: '오류',
+      success: '성공',
+      retry: '다시 시도',
+      ok: '확인',
+    },
+    // AI Analysis
+    ai: {
+      analyzing: 'AI가 분석 중',
+      storageAnalysis: '최적의 보관 조건',
+      analysisResult: 'AI 분석 결과',
+      storageTime: '최적의 보관 시간',
+      storageMethod: '최적의 보관 방법',
+      storageTimeAndMethod: '최적의 보관 시간과 보관 방법은:',
+      dataSource: '데이터 소스',
+      analysisError: '분석에 실패했습니다. 나중에 다시 시도해 주세요',
+      processingError: '분석 중 오류가 발생했습니다',
+      storageTitle: '보관 분석',
+      recommendation: '실제 상황과 보관 환경에 따라 조정하세요',
+    },
+    // Navigation
+    navigation: {
+      dashboard: '대시보드',
+      ingredients: '식재료',
+      overview: '개요',
+      statistics: '통계',
+      settings: '설정',
+    },
+    // Dashboard
+    dashboard: {
+      title: '식재료',
+      subtitle: '식품 재고 관리',
+      addIngredient: '식재료 추가',
+      searchPlaceholder: '식재료 검색...',
+      noIngredients: '식재료를 찾을 수 없습니다',
+      statusSummary: '상태 요약',
+      fresh: '신선',
+      nearExpiry: '유통기한 임박',
+      expired: '만료됨',
+      used: '사용됨',
+      total: '총계',
+      usedHint: '✓를 탭하여 복원',
+    },
+    // Overview
+    overview: {
+      title: '보관 개요',
+      subtitle: '위치별로 정리',
+      fridge: '냉장고',
+      freezer: '냉동고',
+      storage: '보관실',
+      counter: '카운터',
+      noItems: '이 위치에 항목이 없습니다',
+      items: '항목',
+      item: '항목',
+    },
+    // Statistics
+    statistics: {
+      title: '통계',
+      subtitle: '식품 관리 추적',
+      keyMetrics: '주요 지표',
+      statusOverview: '상태 개요',
+      freshnessScore: '신선도 점수',
+      totalItems: '총 항목 수',
+      expiringSoon: '유통기한 임박',
+      recentlyUsed: '최근 사용',
+      storageDistribution: '보관 분포',
+      insights: '인사이트',
+      performance: '성능',
+      comingSoon: '곧 출시',
+      timeframe: '기간',
+      timeframeLabel: '기간:',
+      periodWeek: '주',
+      periodMonth: '월',
+      periodQuarter: '분기',
+      periodYear: '년',
+      last7Days: '지난 7일',
+      last30Days: '지난 30일',
+      last90Days: '지난 90일',
+      inInventory: '재고 중',
+      overallQuality: '전체 품질',
+      readyToUse: '사용 준비됨',
+      useSoon: '곧 사용',
+      needsDisposal: '폐기 필요',
+      consumed: '소비됨',
+      of: '의',
+      items: '항목',
+      efficiencyScore: '효율성 점수',
+      wasteRate: '낭비율',
+      inventoryTurnover: '재고 회전',
+      actionRequired: '조치 필요',
+      cleanupNeeded: '정리 필요',
+      highWasteRate: '높은 낭비율',
+      excellentManagement: '우수한 관리',
+      youHave: '당신은',
+      itemsExpiringSoon: '개의 항목이 곧 만료됩니다. 다음 식사에 사용하는 것을 고려해보세요!',
+      itemsExpired: '개의 만료된 항목이 있습니다. 팬트리를 정리할 때입니다!',
+      yourWasteRateIs: '당신의 낭비율은',
+      considerImproving: '소량 구매나 식사 계획 개선을 고려해보세요.',
+      planMeals: '이 식재료로 식사 계획',
+      disposeExpired: '만료된 항목 폐기',
+      reviewHabits: '쇼핑 습관 검토',
+      maintainPractices: '현재 관행 유지',
+      comingSoonTitle: '고급 분석',
+      comingSoonChart: '대화형 차트',
+      comingSoonTrends: '과거 트렌드 분석',
+      comingSoonShopping: '스마트 쇼핑 추천',
+      comingSoonCost: '비용 추적 및 예산',
+      comingSoonSustain: '지속가능성 지표',
+      // Status items modal
+      noFreshItems: '신선한 항목이 없습니다',
+      noNearExpiryItems: '유통기한 임박 항목이 없습니다',
+      noExpiredItems: '만료된 항목이 없습니다',
+      noUsedItems: '사용된 항목이 없습니다',
+      checkBackLater: '업데이트를 확인하려면 나중에 다시 방문하세요',
+      // Timeframe labels
+      timeframeWeek: '이번 주',
+      timeframeMonth: '이번 달',
+      timeframeQuarter: '이번 분기',
+      timeframeYear: '올해',
+    },
+    // Settings
+    settings: {
+      title: '설정',
+      subtitle: '경험을 맞춤 설정',
+      notifications: '알림',
+      enableNotifications: '알림 활성화',
+      notificationsSubtitle: '푸시 알림 받기',
+      dailyReminders: '일일 알림',
+      dailyRemindersSubtitle: '사용할 항목의 아침 요약',
+      dailyReminderTime: '알림 시간',
+      nearExpiryAlerts: '유통기한 임박 알림',
+      nearExpiryAlertsSubtitle: '항목이 곧 만료될 때 알림',
+      expiredAlerts: '만료된 항목 알림',
+      expiredAlertsSubtitle: '항목이 만료되었을 때 알림',
+      preferences: '환경설정',
+      autoSuggestExpiry: '만료일 자동 제안',
+      autoSuggestExpirySubtitle: '만료일을 자동으로 제안',
+      defaultNearExpiryDays: '기본 유통기한 임박 일수',
+      categories: '카테고리',
+      categoriesSubtitle: '식재료 카테고리 관리',
+      units: '단위',
+      unitsSubtitle: '측정 단위 관리',
+      locations: '위치',
+      locationsSubtitle: '보관 위치 관리',
+      language: '언어',
+      languageSubtitle: '선호하는 언어를 선택하세요',
+      dataManagement: '데이터 관리',
+      exportData: '데이터 내보내기',
+      exportDataSubtitle: '식재료 데이터 다운로드',
+      importData: '데이터 가져오기',
+      importDataSubtitle: 'CSV에서 식재료 가져오기',
+      downloadTemplate: '템플릿 다운로드',
+      downloadTemplateSubtitle: '데이터를 입력하기 위한 CSV 템플릿 파일 다운로드',
+      templateDownloaded: '가져오기 템플릿이 다운로드되었습니다: {fileName}\n\n템플릿 형식에 따라 데이터를 입력한 후 가져오기 기능을 사용하세요.',
+      templateDownloadError: '템플릿 다운로드 중 오류가 발생했습니다. 다시 시도해 주세요.',
+      invalidCSVFormat: 'CSV 파일 형식이 올바르지 않습니다. 파일에 헤더 행과 최소 하나의 데이터 행이 포함되어 있는지 확인하세요.',
+      invalidCSVHeaders: 'CSV 파일 헤더가 올바르지 않습니다.\n\n예상 헤더: {expectedHeaders}\n\n올바른 형식을 보려면 템플릿 파일을 다운로드하세요.',
+      importCompletedWithErrors: '가져오기 완료 (오류 있음)',
+      importResults: '성공적으로 가져옴: {success}개 재료\n오류: {errors}개\n\n오류 세부사항:\n{errorDetails}',
+      importSuccess: '{count}개 재료를 성공적으로 가져왔습니다!',
+      importDataError: '데이터 가져오기 중 오류가 발생했습니다. 파일 형식을 확인하고 다시 시도해 주세요.',
+      clearAllData: '모든 데이터 지우기',
+      clearAllDataSubtitle: '모든 식재료 제거',
+      legal: '법적',
+      profileSubtitle: '프로필 정보 편집',
+      privacyPolicy: '개인정보 보호정책',
+      privacyPolicySubtitle: '개인정보 보호정책 읽기',
+      termsOfService: '서비스 약관',
+      termsOfServiceSubtitle: '서비스 약관 읽기',
+      deleteAccount: '계정 삭제',
+      deleteAccountSubtitle: '계정을 영구적으로 삭제',
+      about: '정보',
+      version: '버전',
+      support: '지원',
+      supportSubtitle: '도움 받기 및 문의',
+      forceUpdateNote: '이 버전에는 중요한 업데이트가 포함되어 있습니다. 앱을 계속 사용하려면 업데이트해야 합니다',
+      rateApp: '앱 평가',
+      rateAppSubtitle: 'App Store에서 평가',
+      footerText: '식품 낭비 감소를 위해❤️로 제작',
+    },
+    // Forms
+    forms: {
+      name: '이름',
+      namePlaceholder: '식재료 이름 입력',
+      category: '카테고리',
+      categoryPlaceholder: '카테고리 선택',
+      quantity: '수량',
+      quantityPlaceholder: '수량 입력',
+      unit: '단위',
+      unitPlaceholder: '(단위 선택)',
+      location: '위치',
+      locationPlaceholder: '보관 위치 선택',
+      purchaseDate: '보관일',
+      expiryDate: '만료일',
+      expiryDatePlaceholder: '만료일 선택',
+      notes: '메모',
+      notesPlaceholder: '메모 추가 (선택사항)',
+    },
+    // Categories
+    categories: {
+      dairy: '유제품',
+      meat: '육류',
+      vegetables: '채소',
+      fruits: '과일',
+      grains: '곡물',
+      beverages: '음료',
+      snacks: '간식',
+      condiments: '조미료',
+      frozen: '냉동',
+      canned: '통조림',
+      other: '기타',
+    },
+    // Units
+    units: {
+      pieces: '개',
+      grams: '그램',
+      kilograms: '킬로그램',
+      ounces: '온스',
+      pounds: '파운드',
+      liters: '리터',
+      milliliters: '밀리리터',
+      cups: '컵',
+      tablespoons: '큰술',
+      teaspoons: '작은술',
+    },
+    // Locations
+    locations: {
+      fridge: '냉장고',
+      freezer: '냉동고',
+      storage: '보관실',
+      counter: '카운터',
+    },
+  },
+  it: {
+    // Common
+    common: {
+      save: 'Salva',
+      cancel: 'Annulla',
+      delete: 'Elimina',
+      edit: 'Modifica',
+      add: 'Aggiungi',
+      close: 'Chiudi',
+      confirm: 'Conferma',
+      loading: 'Caricamento...',
+      error: 'Errore',
+      success: 'Successo',
+      retry: 'Riprova',
+      ok: 'OK',
+    },
+    // AI Analysis
+    ai: {
+      analyzing: 'L\'AI sta analizzando',
+      storageAnalysis: 'migliori condizioni di conservazione',
+      analysisResult: 'Risultato Analisi AI',
+      storageTime: 'Tempo di conservazione ottimale',
+      storageMethod: 'Metodo di conservazione ottimale',
+      storageTimeAndMethod: 'Il tempo e il metodo di conservazione ottimali sono:',
+      dataSource: 'Fonte dati',
+      analysisError: 'Analisi fallita, riprova più tardi',
+      processingError: 'Si è verificato un errore durante l\'analisi',
+      storageTitle: 'Analisi Conservazione',
+      recommendation: 'Regola in base alle condizioni reali e all\'ambiente di conservazione',
+      selectAnalysisType: 'Seleziona Tipo di Analisi',
+      storageOption: 'Metodo di Conservazione',
+      storageDescription: 'Analizza il tempo e il metodo di conservazione ottimali',
+      cookingOption: 'Metodo di Cottura',
+      cookingDescription: 'Raccomanda due ricette e metodi di cottura',
+    },
+    // Navigation
+    navigation: {
+      dashboard: 'Dashboard',
+      ingredients: 'Ingredienti',
+      overview: 'Panoramica',
+      statistics: 'Statistiche',
+      settings: 'Impostazioni',
+    },
+    // Dashboard
+    dashboard: {
+      title: 'Ingredienti',
+      subtitle: 'Gestisci il tuo inventario alimentare',
+      addIngredient: 'Aggiungi Ingrediente',
+      searchPlaceholder: 'Cerca ingredienti...',
+      noIngredients: 'Nessun ingrediente trovato',
+      statusSummary: 'Riepilogo Stato',
+      fresh: 'Fresco',
+      nearExpiry: 'In Scadenza',
+      expired: 'Scaduto',
+      used: 'Usato',
+      total: 'Totale',
+      usedHint: 'Tocca ✓ per ripristinare',
+    },
+    // Overview
+    overview: {
+      title: 'Panoramica Conservazione',
+      subtitle: 'Organizza per posizione',
+      fridge: 'Frigorifero',
+      freezer: 'Congelatore',
+      storage: 'Dispensa',
+      counter: 'Bancone',
+      noItems: 'Nessun elemento in questa posizione',
+      items: 'elementi',
+      item: 'elemento',
+    },
+    // Statistics
+    statistics: {
+      title: 'Statistiche',
+      subtitle: 'Monitora la gestione del cibo',
+      keyMetrics: 'Metriche Chiave',
+      statusOverview: 'Panoramica Stato',
+      freshnessScore: 'Punteggio Freschezza',
+      totalItems: 'Elementi Totali',
+      expiringSoon: 'In Scadenza',
+      recentlyUsed: 'Usati di Recente',
+      storageDistribution: 'Distribuzione Conservazione',
+      insights: 'Insights',
+      seasonalFruits: 'Frutta di Stagione',
+      noSeasonalFruits: 'Nessuna informazione sulla frutta di stagione disponibile',
+      seasonalFruitsDisclaimer: 'Aggiornato quotidianamente alle 8:00 con informazioni sulla frutta di stagione',
+      performance: 'Prestazioni',
+      comingSoon: 'Prossimamente',
+      timeframe: 'Periodo',
+      timeframeLabel: 'Periodo:',
+      periodWeek: 'Settimana',
+      periodMonth: 'Mese',
+      periodQuarter: 'Trimestre',
+      periodYear: 'Anno',
+      last7Days: 'Ultimi 7 Giorni',
+      last30Days: 'Ultimi 30 Giorni',
+      last90Days: 'Ultimi 90 Giorni',
+      inInventory: 'In inventario',
+      overallQuality: 'Qualità generale',
+      readyToUse: 'Pronto all\'uso',
+      useSoon: 'Usa presto',
+      needsDisposal: 'Necessita smaltimento',
+    },
+    // Settings
+    settings: {
+      title: 'Impostazioni',
+      subtitle: 'Personalizza la tua esperienza',
+      language: 'Lingua',
+      languageDescription: 'Seleziona la lingua dell\'interfaccia',
+      notifications: 'Notifiche',
+      notificationsDescription: 'Gestisci le notifiche push',
+      enableNotifications: 'Abilita Notifiche',
+      enableNotificationsDescription: 'Ricevi promemoria per ingredienti in scadenza',
+      autoSuggestExpiry: 'Suggerimento Automatico Scadenza',
+      autoSuggestExpiryDescription: 'AI suggerisce automaticamente la data di scadenza',
+      theme: 'Tema',
+      themeDescription: 'Personalizza l\'aspetto dell\'app',
+      darkMode: 'Modalità Scura',
+      darkModeDescription: 'Attiva il tema scuro',
+      data: 'Dati',
+      dataDescription: 'Gestisci i tuoi dati',
+      exportData: 'Esporta Dati',
+      exportDataDescription: 'Esporta i tuoi ingredienti in un file',
+      importData: 'Importa Dati',
+      importDataDescription: 'Importa ingredienti da un file',
+      clearData: 'Cancella Dati',
+      clearDataDescription: 'Rimuovi tutti i dati dell\'app',
+      about: 'Informazioni',
+      aboutDescription: 'Informazioni sull\'app',
+      version: 'Versione',
+      privacyPolicy: 'Politica Privacy',
+      termsOfService: 'Termini di Servizio',
+      support: 'Supporto',
+      supportSubtitle: 'Ottieni aiuto e contattaci',
+      forceUpdateNote: 'Questa versione contiene aggiornamenti importanti, è necessario aggiornare per continuare a utilizzare l\'app',
+      rateApp: 'Valuta App',
+      rateAppDescription: 'Aiutaci migliorando l\'app',
+      onboarding: 'Tutorial',
+      onboardingDescription: 'Rivedi il tutorial introduttivo',
+    },
+    // Version Update
+    versionUpdate: {
+      title: 'Aggiornamento Disponibile',
+      description: 'È disponibile una nuova versione dell\'app',
+      releaseNotes: 'Note di Rilascio',
+      updateNow: 'Aggiorna Ora',
+      updateLater: 'Aggiorna Più Tardi',
+      forceUpdateNote: 'Questa versione contiene aggiornamenti importanti, è necessario aggiornare per continuare a utilizzare l\'app',
+    },
+    // Forms
+    forms: {
+      name: 'Nome',
+      namePlaceholder: 'Inserisci il nome dell\'ingrediente',
+      category: 'Categoria',
+      categoryPlaceholder: 'Seleziona categoria',
+      quantity: 'Quantità',
+      unit: 'Unità',
+      purchaseDate: 'Data Acquisto',
+      expiryDate: 'Data Scadenza',
+      location: 'Posizione',
+      locationPlaceholder: 'Seleziona posizione',
+      notes: 'Note',
+      notesPlaceholder: 'Aggiungi note (opzionale)',
+    },
+    // Categories
+    categories: {
+      vegetables: 'Verdure',
+      fruits: 'Frutta',
+      dairy: 'Latticini',
+      meat: 'Carne',
+      seafood: 'Frutti di Mare',
+      grains: 'Cereali',
+      spices: 'Spezie',
+      beverages: 'Bevande',
+      snacks: 'Snack',
+      other: 'Altro',
+    },
+    // Units
+    units: {
+      pieces: 'pezzi',
+      kg: 'kg',
+      g: 'g',
+      lb: 'libbre',
+      oz: 'once',
+      l: 'l',
+      ml: 'ml',
+      cups: 'tazze',
+      tablespoons: 'cucchiai',
+      teaspoons: 'cucchiaini',
+    },
+    // Locations
+    locations: {
+      fridge: 'Frigorifero',
+      freezer: 'Congelatore',
+      storage: 'Dispensa',
+      counter: 'Bancone',
+    },
+  },
+};
+
+// 国际化状态管理
+interface I18nState {
+  currentLanguage: LanguageCode;
+  setLanguage: (language: LanguageCode) => void;
+  t: (key: string) => string;
+}
+
+export const useI18n = create<I18nState>()(
+  persist(
+    (set, get) => ({
+      currentLanguage: 'zh',
+
+      setLanguage: (language: LanguageCode) => {
+        console.log('Setting language to:', language);
+        set({ currentLanguage: language });
+      },
+
+      t: (key: string) => {
+        const { currentLanguage } = get();
+        const keys = key.split('.');
+        let value: any = TRANSLATIONS[currentLanguage];
+
+        for (const k of keys) {
+          if (value && typeof value === 'object' && k in value) {
+            value = value[k];
+          } else {
+            // 如果当前语言没有翻译，回退到英语
+            value = TRANSLATIONS.en;
+            for (const fallbackKey of keys) {
+              if (value && typeof value === 'object' && fallbackKey in value) {
+                value = value[fallbackKey];
+              } else {
+                return key; // 如果连英语都没有，返回原始key
+              }
+            }
+            break;
+          }
+        }
+
+        return typeof value === 'string' ? value : key;
+      },
+    }),
+    {
+      name: 'pantry-i18n',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({ currentLanguage: state.currentLanguage }),
+    }
+  )
+);
+
+// 导出翻译函数
+export const t = (key: string) => useI18n.getState().t(key);
+
+// 导出当前语言
+export const getCurrentLanguage = () => useI18n.getState().currentLanguage;
+
+// 导出设置语言函数
+export const setLanguage = (language: LanguageCode) => useI18n.getState().setLanguage(language);
+
+
+// ============================================
+// 文件: src\utils\types\ingredient.ts
+// ============================================
+
+export interface Ingredient {
+  id: string;
+  user_id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  purchase_date: string;
+  expiration_date: string;
+  location: string;
+  images: string[];
+  notes?: string;
+  status: 'fresh' | 'near_expiry' | 'expired' | 'used';
+  freshness_score: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IngredientFormData {
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  purchase_date: string;
+  expiration_date: string;
+  location: string;
+  images: string[];
+  notes: string;
+}
+
+export interface IngredientFilters {
+  category?: string;
+  status?: string;
+  location?: string;
+  dateRange?: {
+    start: string;
+    end: string;
+  };
+}
+
+export interface IngredientStats {
+  total: number;
+  fresh: number;
+  near_expiry: number;
+  expired: number;
+  used: number;
+  byCategory: Record<string, number>;
+  byLocation: Record<string, number>;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  default_shelf_life_days: number;
+  near_expiry_threshold_days: number;
+  sort_order: number;
+}
+
+export interface Unit {
+  id: string;
+  name: string;
+  abbreviation: string;
+  is_weight: boolean;
+  is_volume: boolean;
+  is_count: boolean;
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  sort_order: number;
+}
+
+export interface Reminder {
+  id: string;
+  type: 'daily_summary' | 'item_specific' | 'custom';
+  title: string;
+  message?: string;
+  scheduled_for: string;
+  is_recurring: boolean;
+  is_sent: boolean;
+  is_actioned: boolean;
+}
+
+export interface ConsumptionHistory {
+  id: string;
+  ingredient_id: string;
+  quantity_consumed: number;
+  consumption_date: string;
+  consumption_type: 'used' | 'wasted' | 'donated';
+  notes?: string;
+}
+
+
+
+
+==================================================
+统计信息
+==================================================
+总代码行数: 20703
+首1500行行数: 1500
+尾1500行行数: 1500
+文件总数: 80

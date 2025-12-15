@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fridgy.app",
-      "buildNumber": "31",
+      "buildNumber": "39",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app uses location to suggest nearby stores.",
         "NSUserNotificationsUsageDescription": "This app sends notifications to remind you about expiring ingredients.",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.fridgy.app",
-      "versionCode": 11,
+      "versionCode": 14,
       "adaptiveIcon": {
         "foregroundImage": "./assets/png/icon.png",
         "backgroundColor": "#4CAF50"

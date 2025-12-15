@@ -37,29 +37,7 @@
    - 复制仓库 URL，格式：`https://github.com/你的用户名/certificates.git`
    - 例如：`https://github.com/yioyiu/certificates.git`
 
-#### 方法 2：使用 GitHub CLI（可选）
 
-如果你安装了 GitHub CLI，可以使用命令行创建：
-
-```bash
-# 安装 GitHub CLI（如果还没有）
-# Windows: https://cli.github.com/
-# Mac: brew install gh
-# Linux: 查看 https://cli.github.com/
-
-# 登录 GitHub
-gh auth login
-
-# 创建私有仓库
-gh repo create certificates --private --description "iOS certificates storage"
-
-# 记录仓库 URL
-# 格式：https://github.com/你的用户名/certificates.git
-```
-
-#### 方法 3：使用现有仓库（不推荐）
-
-如果你已经有一个私有仓库，也可以使用它，但建议使用专门的仓库来存储证书。
 
 #### ⚠️ 重要提示
 

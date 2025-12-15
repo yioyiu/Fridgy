@@ -1,0 +1,5 @@
+[33m12582b2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m)[m chore: 更新权限配置和依赖修复
+[33m8dedd87[m Update app configuration and permissions service
+[33m17af737[m fix: 修复expo-network依赖问题
+[33m26bb54d[m feat: 实现渐进式权限请求策略
+[33m0818e0e[m Update app features and fix various components
