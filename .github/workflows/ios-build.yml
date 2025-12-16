@@ -179,40 +179,46 @@ jobs:
             #   "duration": 1200,
             #   "in_house": false
             # }
+            # 使用 Python 创建 JSON 文件
+            # 将私钥内容写入临时文件，然后使用 Python 读取并创建 JSON
             TEMP_KEY_FILE=$(mktemp)
             echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > "$TEMP_KEY_FILE"
             
-            # 使用 Python 创建 JSON 文件（通过环境变量传递参数）
-            TEMP_KEY_FILE="$TEMP_KEY_FILE" \
-            APP_STORE_CONNECT_API_KEY_ID="$APP_STORE_CONNECT_API_KEY_ID" \
-            APP_STORE_CONNECT_API_ISSUER_ID="$APP_STORE_CONNECT_API_ISSUER_ID" \
-            python3 <<'PYTHON_SCRIPT' > "$API_KEY_PATH"
+            # 创建 Python 脚本临时文件
+            PYTHON_SCRIPT=$(mktemp)
+            cat > "$PYTHON_SCRIPT" << 'PYEOF'
 import json
 import sys
-import os
 
-# 从环境变量读取参数
-temp_key_file = os.environ['TEMP_KEY_FILE']
-key_id = os.environ['APP_STORE_CONNECT_API_KEY_ID']
-issuer_id = os.environ['APP_STORE_CONNECT_API_ISSUER_ID']
+# 读取命令行参数
+temp_key_file = sys.argv[1]
+key_id = sys.argv[2]
+issuer_id = sys.argv[3]
+output_file = sys.argv[4]
 
 # 读取私钥内容
-with open(temp_key_file, "r") as f:
+with open(temp_key_file, 'r') as f:
     private_key_content = f.read()
 
+# 创建 JSON 数据
 api_key_data = {
-    "key_id": key_id,
-    "issuer_id": issuer_id,
-    "key": private_key_content,
-    "duration": 1200,
-    "in_house": False
+    'key_id': key_id,
+    'issuer_id': issuer_id,
+    'key': private_key_content,
+    'duration': 1200,
+    'in_house': False
 }
 
-json.dump(api_key_data, sys.stdout, indent=2)
-PYTHON_SCRIPT
+# 写入 JSON 文件
+with open(output_file, 'w') as f:
+    json.dump(api_key_data, f, indent=2)
+PYEOF
+            
+            # 执行 Python 脚本
+            python3 "$PYTHON_SCRIPT" "$TEMP_KEY_FILE" "$APP_STORE_CONNECT_API_KEY_ID" "$APP_STORE_CONNECT_API_ISSUER_ID" "$API_KEY_PATH"
             
             # 清理临时文件
-            rm -f "$TEMP_KEY_FILE"
+            rm -f "$TEMP_KEY_FILE" "$PYTHON_SCRIPT"
             chmod 600 "$API_KEY_PATH"
             echo "✅ API Key JSON 文件已创建: $API_KEY_PATH"
             
