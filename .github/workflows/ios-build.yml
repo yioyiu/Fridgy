@@ -184,35 +184,9 @@ jobs:
             TEMP_KEY_FILE=$(mktemp)
             echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > "$TEMP_KEY_FILE"
             
-            # 创建 Python 脚本临时文件
+            # 创建 Python 脚本临时文件（使用 printf 避免 heredoc 缩进问题）
             PYTHON_SCRIPT=$(mktemp)
-            cat > "$PYTHON_SCRIPT" << 'PYEOF'
-import json
-import sys
-
-# 读取命令行参数
-temp_key_file = sys.argv[1]
-key_id = sys.argv[2]
-issuer_id = sys.argv[3]
-output_file = sys.argv[4]
-
-# 读取私钥内容
-with open(temp_key_file, 'r') as f:
-    private_key_content = f.read()
-
-# 创建 JSON 数据
-api_key_data = {
-    'key_id': key_id,
-    'issuer_id': issuer_id,
-    'key': private_key_content,
-    'duration': 1200,
-    'in_house': False
-}
-
-# 写入 JSON 文件
-with open(output_file, 'w') as f:
-    json.dump(api_key_data, f, indent=2)
-PYEOF
+            printf 'import json\nimport sys\n\ntemp_key_file = sys.argv[1]\nkey_id = sys.argv[2]\nissuer_id = sys.argv[3]\noutput_file = sys.argv[4]\n\nwith open(temp_key_file, "r") as f:\n    private_key_content = f.read()\n\napi_key_data = {\n    "key_id": key_id,\n    "issuer_id": issuer_id,\n    "key": private_key_content,\n    "duration": 1200,\n    "in_house": False\n}\n\nwith open(output_file, "w") as f:\n    json.dump(api_key_data, f, indent=2)\n' > "$PYTHON_SCRIPT"
             
             # 执行 Python 脚本
             python3 "$PYTHON_SCRIPT" "$TEMP_KEY_FILE" "$APP_STORE_CONNECT_API_KEY_ID" "$APP_STORE_CONNECT_API_ISSUER_ID" "$API_KEY_PATH"
