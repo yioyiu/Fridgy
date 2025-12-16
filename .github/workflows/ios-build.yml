@@ -22,7 +22,7 @@ jobs:
   build:
     name: Build iOS App with Xcode
     runs-on: macos-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - name: Checkout code
