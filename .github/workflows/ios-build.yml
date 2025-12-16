@@ -131,26 +131,56 @@ jobs:
 
       - name: Setup fastlane match
         env:
+          # App Store Connect API Key（推荐方式，无需 2FA）
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+          # 备用方式：Apple ID + 密码（需要 2FA）
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          FASTLANE_USER: ${{ secrets.APPLE_ID }}                       # fastlane 登录用的账号
-          FASTLANE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}             # fastlane 登录用的“Apple ID 登录密码”（不是 App 专用密码）
-          FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }} # 仅给需要 App 专用密码的动作使用
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+          FASTLANE_USER: ${{ secrets.APPLE_ID }}
+          FASTLANE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: |
           # fastlane match 会自动管理证书和 provisioning profiles
-          # 不需要 Mac，完全在 GitHub Actions 中自动化
-          
-          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_PASSWORD" ]; then
-            echo "::error::Apple ID credentials are required"
-            echo "::error::Please configure APPLE_ID and APPLE_PASSWORD secrets"
-            exit 1
-          fi
+          # 优先使用 App Store Connect API Key（无需 2FA，推荐）
+          # 如果没有配置 API Key，则回退到 Apple ID + 密码方式
           
           if [ -z "$MATCH_PASSWORD" ]; then
             echo "::error::MATCH_PASSWORD is required for fastlane match"
             echo "::error::Please configure MATCH_PASSWORD secret (used to encrypt certificates)"
+            exit 1
+          fi
+          
+          # 检查是否使用 App Store Connect API Key
+          USE_API_KEY=0
+          if [ -n "$APP_STORE_CONNECT_API_KEY_ID" ] && [ -n "$APP_STORE_CONNECT_API_ISSUER_ID" ] && [ -n "$APP_STORE_CONNECT_API_KEY_CONTENT" ]; then
+            USE_API_KEY=1
+            echo "✅ 使用 App Store Connect API Key 认证（无需 2FA）"
+            echo "API Key ID: $APP_STORE_CONNECT_API_KEY_ID"
+            echo "Issuer ID: $APP_STORE_CONNECT_API_ISSUER_ID"
+            
+            # 创建临时的 .p8 文件供 fastlane 使用
+            mkdir -p ~/.appstoreconnect/private_keys
+            echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+            chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+            echo "✅ API Key 文件已创建"
+          elif [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ]; then
+            echo "⚠️  使用 Apple ID + 密码认证（需要 2FA，建议使用 API Key）"
+            echo "Apple ID: $APPLE_ID"
+          else
+            echo "::error::需要配置认证方式："
+            echo "::error::方式 1（推荐）：配置 App Store Connect API Key"
+            echo "::error::  - APPSTORE_API_KEY_ID"
+            echo "::error::  - APPSTORE_ISSUER_ID"
+            echo "::error::  - APPSTORE_API_PRIVATE_KEY"
+            echo "::error::方式 2：配置 Apple ID + 密码（需要 2FA）"
+            echo "::error::  - APPLE_ID"
+            echo "::error::  - APPLE_PASSWORD"
+            echo "::error::  - FASTLANE_SESSION（用于绕过 2FA）"
             exit 1
           fi
           
@@ -166,14 +196,27 @@ jobs:
           echo "Using git_url: $GIT_URL"
           
           # 更新 Matchfile（覆盖以确保使用正确的配置）
-          {
-            echo "git_url(\"$GIT_URL\")"
-            echo "storage_mode(\"git\")"
-            echo "type(\"appstore\")"
-            echo "app_identifier(\"com.fridgy.app\")"
-            echo "username(\"$APPLE_ID\")"
-            echo "team_id(\"${{ steps.get_team_id.outputs.team_id }}\")"
-          } > fastlane/Matchfile
+          if [ $USE_API_KEY -eq 1 ]; then
+            # 使用 API Key 方式
+            {
+              echo "git_url(\"$GIT_URL\")"
+              echo "storage_mode(\"git\")"
+              echo "type(\"appstore\")"
+              echo "app_identifier(\"com.fridgy.app\")"
+              echo "team_id(\"${{ steps.get_team_id.outputs.team_id }}\")"
+              echo "api_key_path(\"~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8\")"
+            } > fastlane/Matchfile
+          else
+            # 使用 Apple ID + 密码方式
+            {
+              echo "git_url(\"$GIT_URL\")"
+              echo "storage_mode(\"git\")"
+              echo "type(\"appstore\")"
+              echo "app_identifier(\"com.fridgy.app\")"
+              echo "username(\"$APPLE_ID\")"
+              echo "team_id(\"${{ steps.get_team_id.outputs.team_id }}\")"
+            } > fastlane/Matchfile
+          fi
           
           echo "Matchfile created:"
           cat fastlane/Matchfile
@@ -187,14 +230,29 @@ jobs:
       - name: Run fastlane match to sync certificates
         id: run_fastlane_match
         env:
+          # App Store Connect API Key（推荐方式，无需 2FA）
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+          # 备用方式：Apple ID + 密码（需要 2FA）
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
           FASTLANE_USER: ${{ secrets.APPLE_ID }}
           FASTLANE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: |
+          # 如果使用 App Store Connect API Key，创建 .p8 文件
+          if [ -n "$APP_STORE_CONNECT_API_KEY_ID" ] && [ -n "$APP_STORE_CONNECT_API_ISSUER_ID" ] && [ -n "$APP_STORE_CONNECT_API_KEY_CONTENT" ]; then
+            echo "✅ 使用 App Store Connect API Key 认证（无需 2FA）"
+            mkdir -p ~/.appstoreconnect/private_keys
+            echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+            chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+            echo "✅ API Key 文件已创建: ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
+          fi
+          
           # 清理环境变量（去除首尾空格和换行符）
           # fastlane match 期望 base64 编码的 username:token
           ORIGINAL_AUTH=""
