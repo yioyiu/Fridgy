@@ -281,26 +281,20 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: |
-          # 如果使用 App Store Connect API Key，创建 .p8 文件（使用绝对路径）
-          if [ -n "$APP_STORE_CONNECT_API_KEY_ID" ] && [ -n "$APP_STORE_CONNECT_API_ISSUER_ID" ] && [ -n "$APP_STORE_CONNECT_API_KEY_CONTENT" ]; then
-            echo "✅ 使用 App Store Connect API Key 认证（无需 2FA）"
+          # API Key JSON 文件已在 "Setup fastlane match" 步骤中创建
+          # 如果使用 App Store Connect API Key，验证 JSON 文件是否存在
+          if [ -n "$APP_STORE_CONNECT_API_KEY_ID" ] && [ -n "$APP_STORE_CONNECT_API_ISSUER_ID" ]; then
             API_KEY_DIR="$HOME/.appstoreconnect/private_keys"
-            mkdir -p "$API_KEY_DIR"
-            API_KEY_PATH="$API_KEY_DIR/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
-            echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > "$API_KEY_PATH"
-            chmod 600 "$API_KEY_PATH"
-            echo "✅ API Key 文件已创建: $API_KEY_PATH"
+            API_KEY_PATH="$API_KEY_DIR/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.json"
             
-            # 验证文件是否存在
             if [ -f "$API_KEY_PATH" ]; then
-              echo "✅ API Key 文件验证成功"
-              ls -la "$API_KEY_PATH"
-              # 设置环境变量供 fastlane match 使用（通过 GITHUB_ENV 传递到后续步骤）
-              echo "APP_STORE_CONNECT_API_KEY_PATH=$API_KEY_PATH" >> $GITHUB_ENV
+              echo "✅ API Key JSON 文件已存在: $API_KEY_PATH"
+              # 确保环境变量正确设置
               export APP_STORE_CONNECT_API_KEY_PATH="$API_KEY_PATH"
-              echo "✅ 已设置 APP_STORE_CONNECT_API_KEY_PATH=$API_KEY_PATH"
+              echo "APP_STORE_CONNECT_API_KEY_PATH=$API_KEY_PATH" >> $GITHUB_ENV
             else
-              echo "::error::API Key 文件创建失败"
+              echo "::error::API Key JSON 文件不存在: $API_KEY_PATH"
+              echo "::error::请确保 'Setup fastlane match' 步骤已成功创建 JSON 文件"
               exit 1
             fi
           fi
