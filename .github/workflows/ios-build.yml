@@ -164,13 +164,67 @@ jobs:
             echo "API Key ID: $APP_STORE_CONNECT_API_KEY_ID"
             echo "Issuer ID: $APP_STORE_CONNECT_API_ISSUER_ID"
             
-            # 创建临时的 .p8 文件供 fastlane 使用（使用绝对路径）
+            # fastlane 期望 API Key 是一个 JSON 文件，而不是 .p8 文件
+            # 创建 JSON 格式的 API Key 文件
             API_KEY_DIR="$HOME/.appstoreconnect/private_keys"
             mkdir -p "$API_KEY_DIR"
-            API_KEY_PATH="$API_KEY_DIR/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
-            echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > "$API_KEY_PATH"
+            API_KEY_PATH="$API_KEY_DIR/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.json"
+            
+            # 使用 Python 创建 JSON 文件，确保正确转义
+            # fastlane 期望的 JSON 格式：
+            # {
+            #   "key_id": "...",
+            #   "issuer_id": "...",
+            #   "key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+            #   "duration": 1200,
+            #   "in_house": false
+            # }
+            TEMP_KEY_FILE=$(mktemp)
+            echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > "$TEMP_KEY_FILE"
+            
+            # 使用 Python 创建 JSON 文件（通过环境变量传递参数）
+            TEMP_KEY_FILE="$TEMP_KEY_FILE" \
+            APP_STORE_CONNECT_API_KEY_ID="$APP_STORE_CONNECT_API_KEY_ID" \
+            APP_STORE_CONNECT_API_ISSUER_ID="$APP_STORE_CONNECT_API_ISSUER_ID" \
+            python3 <<'PYTHON_SCRIPT' > "$API_KEY_PATH"
+import json
+import sys
+import os
+
+# 从环境变量读取参数
+temp_key_file = os.environ['TEMP_KEY_FILE']
+key_id = os.environ['APP_STORE_CONNECT_API_KEY_ID']
+issuer_id = os.environ['APP_STORE_CONNECT_API_ISSUER_ID']
+
+# 读取私钥内容
+with open(temp_key_file, "r") as f:
+    private_key_content = f.read()
+
+api_key_data = {
+    "key_id": key_id,
+    "issuer_id": issuer_id,
+    "key": private_key_content,
+    "duration": 1200,
+    "in_house": False
+}
+
+json.dump(api_key_data, sys.stdout, indent=2)
+PYTHON_SCRIPT
+            
+            # 清理临时文件
+            rm -f "$TEMP_KEY_FILE"
             chmod 600 "$API_KEY_PATH"
-            echo "✅ API Key 文件已创建: $API_KEY_PATH"
+            echo "✅ API Key JSON 文件已创建: $API_KEY_PATH"
+            
+            # 验证 JSON 格式
+            if command -v python3 &> /dev/null; then
+              if python3 -m json.tool "$API_KEY_PATH" > /dev/null 2>&1; then
+                echo "✅ JSON 格式验证成功"
+              else
+                echo "::error::JSON 格式验证失败"
+                exit 1
+              fi
+            fi
           elif [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ]; then
             echo "⚠️  使用 Apple ID + 密码认证（需要 2FA，建议使用 API Key）"
             echo "Apple ID: $APPLE_ID"
@@ -456,12 +510,28 @@ jobs:
             echo "API Key ID: $APP_STORE_CONNECT_API_KEY_ID"
             echo "Issuer ID: $APP_STORE_CONNECT_API_ISSUER_ID"
             
-            # 验证 API Key 文件格式
-            if head -1 "$APP_STORE_CONNECT_API_KEY_PATH" | grep -q "BEGIN PRIVATE KEY"; then
-              echo "✅ API Key 文件格式正确"
+            # 验证 API Key JSON 文件格式
+            if command -v python3 &> /dev/null; then
+              if python3 -m json.tool "$APP_STORE_CONNECT_API_KEY_PATH" > /dev/null 2>&1; then
+                echo "✅ API Key JSON 文件格式正确"
+                # 验证 JSON 中包含必需的字段
+                if python3 -c "import json; data = json.load(open('$APP_STORE_CONNECT_API_KEY_PATH')); assert 'key_id' in data and 'issuer_id' in data and 'key' in data" 2>/dev/null; then
+                  echo "✅ API Key JSON 文件包含必需的字段"
+                else
+                  echo "::error::API Key JSON 文件缺少必需的字段（需要 key_id, issuer_id, key）"
+                  exit 1
+                fi
+              else
+                echo "::error::API Key JSON 文件格式不正确"
+                exit 1
+              fi
             else
-              echo "::error::API Key 文件格式不正确，应该以 '-----BEGIN PRIVATE KEY-----' 开头"
-              exit 1
+              # 如果没有 python3，简单检查是否是 JSON（以 { 开头）
+              if head -1 "$APP_STORE_CONNECT_API_KEY_PATH" | grep -q "^[[:space:]]*{"; then
+                echo "✅ API Key 文件看起来是 JSON 格式"
+              else
+                echo "::warning::无法验证 JSON 格式（python3 不可用），继续尝试..."
+              fi
             fi
           else
             echo "⚠️  未检测到 API Key，将使用 Apple ID + 密码方式"
@@ -478,15 +548,23 @@ jobs:
             cat /tmp/match-output.log
             echo "=========================================="
             
-            # 检查是否是 API Key 认证问题
-            if grep -qi "unauthorized\|authentication\|api.*key\|invalid.*key\|key.*not.*found" /tmp/match-output.log; then
-              echo "::error::检测到 API Key 认证错误"
+            # 检查是否是 API Key 认证问题（JSON 解析错误表示 API Key 文件格式问题）
+            if grep -qi "JSON::ParserError\|unexpected token\|parse.*error\|api.*key.*not.*found\|invalid.*api.*key" /tmp/match-output.log; then
+              echo "::error::检测到 API Key 文件格式错误（JSON 解析失败）"
+              echo "::error::请检查："
+              echo "::error::1. APPSTORE_API_PRIVATE_KEY 内容是否完整（包括 -----BEGIN PRIVATE KEY----- 和 -----END PRIVATE KEY-----）"
+              echo "::error::2. APPSTORE_API_PRIVATE_KEY 是否包含特殊字符导致 JSON 格式错误"
+              echo "::error::3. 如果问题持续，请检查 workflow 日志中的 JSON 文件内容"
+            elif grep -qi "unauthorized\|authentication.*failed\|401\|403" /tmp/match-output.log; then
+              echo "::error::检测到 API Key 认证错误（权限问题）"
               echo "::error::请检查："
               echo "::error::1. APPSTORE_API_KEY_ID 是否正确"
               echo "::error::2. APPSTORE_ISSUER_ID 是否正确"
-              echo "::error::3. APPSTORE_API_PRIVATE_KEY 内容是否完整（包括 -----BEGIN PRIVATE KEY----- 和 -----END PRIVATE KEY-----）"
-              echo "::error::4. API Key 权限是否至少为 'App Manager'（需要创建证书和 profiles）"
-              echo "::error::5. API Key 是否已过期或被撤销"
+              echo "::error::3. API Key 权限是否至少为 'App Manager'（需要创建证书和 profiles）"
+              echo "::error::4. API Key 是否已过期或被撤销"
+            elif grep -qi "No code signing identity found.*readonly" /tmp/match-output.log; then
+              echo "ℹ️  这是正常的：仓库中没有证书，需要创建（readonly 模式无法创建）"
+              echo "ℹ️  将继续尝试创建模式..."
             fi
             
             # 检查是否是 Git 认证问题
@@ -526,15 +604,24 @@ jobs:
               cat /tmp/match-create.log
               echo "=========================================="
               
-              # 检查是否是 API Key 认证问题
-              if grep -qi "unauthorized\|authentication\|api.*key\|invalid.*key\|key.*not.*found" /tmp/match-create.log; then
-                echo "::error::检测到 API Key 认证错误"
+              # 检查是否是 API Key 文件格式问题（JSON 解析错误）
+              if grep -qi "JSON::ParserError\|unexpected token\|parse.*error" /tmp/match-create.log; then
+                echo "::error::检测到 API Key JSON 文件格式错误"
+                echo "::error::请检查："
+                echo "::error::1. APPSTORE_API_PRIVATE_KEY 内容是否完整（包括 -----BEGIN PRIVATE KEY----- 和 -----END PRIVATE KEY-----）"
+                echo "::error::2. APPSTORE_API_PRIVATE_KEY 是否包含特殊字符导致 JSON 格式错误"
+                echo "::error::3. 查看 workflow 日志中创建的 JSON 文件内容"
+                exit 1
+              fi
+              
+              # 检查是否是 API Key 认证问题（权限/认证失败）
+              if grep -qi "unauthorized\|authentication.*failed\|401\|403" /tmp/match-create.log; then
+                echo "::error::检测到 API Key 认证错误（权限问题）"
                 echo "::error::请检查："
                 echo "::error::1. APPSTORE_API_KEY_ID 是否正确"
                 echo "::error::2. APPSTORE_ISSUER_ID 是否正确"
-                echo "::error::3. APPSTORE_API_PRIVATE_KEY 内容是否完整"
-                echo "::error::4. API Key 权限是否至少为 'App Manager'"
-                echo "::error::5. API Key 是否已过期或被撤销"
+                echo "::error::3. API Key 权限是否至少为 'App Manager'"
+                echo "::error::4. API Key 是否已过期或被撤销"
                 exit 1
               fi
               
