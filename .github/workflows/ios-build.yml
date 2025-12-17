@@ -835,9 +835,9 @@ jobs:
             pkill -9 xcodebuild 2>/dev/null || true
             
             # 设置构建超时为 3 小时（10800 秒），避免在代码签名步骤卡住
-            # 使用 timeout 命令包装 xcodebuild，如果超时则返回 124
+            # 使用 Perl 的 alarm 功能实现超时（macOS 兼容）
             echo "Starting build with 3-hour timeout..."
-            timeout 10800 xcodebuild -workspace ios/Fridgy.xcworkspace \
+            perl -e 'alarm 10800; exec @ARGV' -- xcodebuild -workspace ios/Fridgy.xcworkspace \
               -scheme Fridgy \
               -configuration Release \
               -archivePath build/Fridgy.xcarchive \
@@ -850,7 +850,7 @@ jobs:
               -allowProvisioningUpdates \
               archive 2>&1 | tee build.log || {
               EXIT_CODE=$?
-              if [ $EXIT_CODE -eq 124 ]; then
+              if [ $EXIT_CODE -eq 142 ]; then
                 echo "::error::Build timed out after 3 hours. Likely stuck in code signing step."
                 echo "::error::Checking for stuck processes..."
                 ps aux | grep -E "(codesign|xcodebuild)" | head -20
@@ -880,8 +880,9 @@ jobs:
             pkill -9 xcodebuild 2>/dev/null || true
             
             # 设置构建超时为 3 小时（10800 秒）
+            # 使用 Perl 的 alarm 功能实现超时（macOS 兼容）
             echo "Starting build with 3-hour timeout..."
-            timeout 10800 xcodebuild -workspace ios/Fridgy.xcworkspace \
+            perl -e 'alarm 10800; exec @ARGV' -- xcodebuild -workspace ios/Fridgy.xcworkspace \
               -scheme Fridgy \
               -configuration Release \
               -archivePath build/Fridgy.xcarchive \
@@ -893,7 +894,7 @@ jobs:
               -allowProvisioningUpdates \
               archive 2>&1 | tee build.log || {
               EXIT_CODE=$?
-              if [ $EXIT_CODE -eq 124 ]; then
+              if [ $EXIT_CODE -eq 142 ]; then
                 echo "::error::Build timed out after 3 hours. Likely stuck in code signing step."
                 echo "::error::Checking for stuck processes..."
                 ps aux | grep -E "(codesign|xcodebuild)" | head -20
