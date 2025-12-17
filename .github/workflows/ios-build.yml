@@ -69,10 +69,20 @@ jobs:
             exit 1
           fi
 
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
       - name: Install CocoaPods dependencies
         run: |
           cd ios
-          pod install
+          pod install --repo-update
           cd ..
 
       - name: Bump iOS build number
@@ -757,6 +767,14 @@ jobs:
           
           cd ..
 
+      - name: Cache Xcode DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-xcode-${{ hashFiles('ios/Podfile.lock', 'ios/**/*.xcodeproj', 'ios/**/*.xcworkspace') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-
+
       - name: Build Archive
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -814,6 +832,8 @@ jobs:
               -scheme Fridgy \
               -configuration Release \
               -archivePath build/Fridgy.xcarchive \
+              -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+              -jobs $(sysctl -n hw.ncpu) \
               DEVELOPMENT_TEAM="${{ steps.get_team_id.outputs.team_id }}" \
               CODE_SIGN_STYLE="Manual" \
               CODE_SIGN_IDENTITY="Apple Distribution" \
@@ -837,6 +857,8 @@ jobs:
               -scheme Fridgy \
               -configuration Release \
               -archivePath build/Fridgy.xcarchive \
+              -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+              -jobs $(sysctl -n hw.ncpu) \
               DEVELOPMENT_TEAM="${{ steps.get_team_id.outputs.team_id }}" \
               CODE_SIGN_STYLE="Manual" \
               CODE_SIGN_IDENTITY="Apple Distribution" \
