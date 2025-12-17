@@ -828,7 +828,16 @@ jobs:
           
           if [ -n "$PROFILE_UUID" ]; then
             echo "Using provisioning profile UUID: $PROFILE_UUID"
-            xcodebuild -workspace ios/Fridgy.xcworkspace \
+            
+            # 清理可能卡住的进程
+            echo "Checking for stuck processes..."
+            pkill -9 codesign 2>/dev/null || true
+            pkill -9 xcodebuild 2>/dev/null || true
+            
+            # 设置构建超时为 3 小时（10800 秒），避免在代码签名步骤卡住
+            # 使用 timeout 命令包装 xcodebuild，如果超时则返回 124
+            echo "Starting build with 3-hour timeout..."
+            timeout 10800 xcodebuild -workspace ios/Fridgy.xcworkspace \
               -scheme Fridgy \
               -configuration Release \
               -archivePath build/Fridgy.xcarchive \
@@ -839,7 +848,19 @@ jobs:
               CODE_SIGN_IDENTITY="Apple Distribution" \
               PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
               -allowProvisioningUpdates \
-              archive 2>&1 | tee build.log
+              archive 2>&1 | tee build.log || {
+              EXIT_CODE=$?
+              if [ $EXIT_CODE -eq 124 ]; then
+                echo "::error::Build timed out after 3 hours. Likely stuck in code signing step."
+                echo "::error::Checking for stuck processes..."
+                ps aux | grep -E "(codesign|xcodebuild)" | head -20
+                echo "::error::Last 100 lines of build log:"
+                tail -100 build.log
+                exit 1
+              else
+                exit $EXIT_CODE
+              fi
+            }
           else
             echo "::error::No provisioning profile UUID found for com.fridgy.app"
             echo "::error::This usually means:"
@@ -853,7 +874,14 @@ jobs:
             echo "::error::2. Then re-run this workflow to regenerate the profile"
             echo "::error::"
             echo "::error::Attempting build anyway (may fail)..."
-            xcodebuild -workspace ios/Fridgy.xcworkspace \
+            # 清理可能卡住的进程
+            echo "Checking for stuck processes..."
+            pkill -9 codesign 2>/dev/null || true
+            pkill -9 xcodebuild 2>/dev/null || true
+            
+            # 设置构建超时为 3 小时（10800 秒）
+            echo "Starting build with 3-hour timeout..."
+            timeout 10800 xcodebuild -workspace ios/Fridgy.xcworkspace \
               -scheme Fridgy \
               -configuration Release \
               -archivePath build/Fridgy.xcarchive \
@@ -863,7 +891,19 @@ jobs:
               CODE_SIGN_STYLE="Manual" \
               CODE_SIGN_IDENTITY="Apple Distribution" \
               -allowProvisioningUpdates \
-              archive 2>&1 | tee build.log
+              archive 2>&1 | tee build.log || {
+              EXIT_CODE=$?
+              if [ $EXIT_CODE -eq 124 ]; then
+                echo "::error::Build timed out after 3 hours. Likely stuck in code signing step."
+                echo "::error::Checking for stuck processes..."
+                ps aux | grep -E "(codesign|xcodebuild)" | head -20
+                echo "::error::Last 100 lines of build log:"
+                tail -100 build.log
+                exit 1
+              else
+                exit $EXIT_CODE
+              fi
+            }
           fi
           
           BUILD_EXIT_CODE=${PIPESTATUS[0]}
