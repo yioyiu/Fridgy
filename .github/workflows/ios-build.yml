@@ -783,10 +783,13 @@ jobs:
           EXISTING_PROFILES=$(find "$PROFILE_DIR" -name "*.mobileprovision" -type f 2>/dev/null | wc -l | tr -d ' ')
           echo "Found $EXISTING_PROFILES existing profile(s) in directory"
           
+          # 初始化变量
+          SKIP_MANUAL_INSTALL=0
+          FOUND_MATCHING_PROFILE=0
+          
           # 如果已经有 profiles，检查是否包含 com.fridgy.app
           if [ "$EXISTING_PROFILES" -gt 0 ]; then
             echo "Checking if existing profiles match com.fridgy.app..."
-            FOUND_MATCHING_PROFILE=0
             for profile in "$PROFILE_DIR"/*.mobileprovision; do
               if [ -f "$profile" ]; then
                 TEMP_PLIST=$(mktemp)
@@ -808,10 +811,7 @@ jobs:
               SKIP_MANUAL_INSTALL=1
             else
               echo "::warning::Profiles exist but none match com.fridgy.app, will try manual installation"
-              SKIP_MANUAL_INSTALL=0
             fi
-          else
-            SKIP_MANUAL_INSTALL=0
           fi
           
           # 只有在没有找到匹配的 profile 时才尝试手动安装
