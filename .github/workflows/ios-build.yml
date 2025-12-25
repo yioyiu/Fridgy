@@ -750,16 +750,34 @@ jobs:
           echo "=========================================="
           
           # 查找并保存 provisioning profile UUID
-          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          echo "查找 provisioning profile..."
-          echo "Profile directory: $PROFILE_DIR"
+          # fastlane match 将 profiles 安装到 Xcode 使用的目录，而不是 MobileDevice 目录
+          XCODE_PROFILE_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          MOBILEDEVICE_PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           
-          # 创建标准目录（如果不存在）
-          if [ ! -d "$PROFILE_DIR" ]; then
-            echo "::warning::Provisioning Profiles directory does not exist, creating it..."
-            mkdir -p "$PROFILE_DIR"
-            chmod 755 "$PROFILE_DIR"
+          echo "查找 provisioning profile..."
+          echo "Xcode profile directory: $XCODE_PROFILE_DIR"
+          echo "MobileDevice profile directory: $MOBILEDEVICE_PROFILE_DIR"
+          
+          # 检查 Xcode profile 目录（fastlane match 使用的目录）
+          if [ ! -d "$XCODE_PROFILE_DIR" ]; then
+            echo "::warning::Xcode Provisioning Profiles directory does not exist, creating it..."
+            mkdir -p "$XCODE_PROFILE_DIR"
+            chmod 755 "$XCODE_PROFILE_DIR"
           fi
+          
+          # 检查 MobileDevice profile 目录（xcodebuild 可能使用的目录）
+          if [ ! -d "$MOBILEDEVICE_PROFILE_DIR" ]; then
+            echo "::warning::MobileDevice Provisioning Profiles directory does not exist, creating it..."
+            mkdir -p "$MOBILEDEVICE_PROFILE_DIR"
+            chmod 755 "$MOBILEDEVICE_PROFILE_DIR"
+          fi
+          
+          # 优先使用 Xcode profile 目录（fastlane match 安装的位置）
+          PROFILE_DIR="$XCODE_PROFILE_DIR"
+          
+          echo "Using profile directory: $PROFILE_DIR"
+          echo "Listing profiles in Xcode directory:"
+          ls -la "$XCODE_PROFILE_DIR" 2>/dev/null | head -20 || echo "Directory is empty or not accessible"
           
           # 尝试从 fastlane match 的 git 仓库手动复制 profiles
           echo "=========================================="
@@ -797,16 +815,31 @@ jobs:
                     # 复制每个 profile 到标准位置
                     echo "$PROFILE_FILES" | while read -r profile_file; do
                       if [ -f "$profile_file" ]; then
-                        # 提取 profile UUID 作为文件名
-                        PROFILE_UUID=$(security cms -D -i "$profile_file" 2>/dev/null | /usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin 2>/dev/null || echo "")
-                        if [ -n "$PROFILE_UUID" ]; then
-                          DEST_FILE="$PROFILE_DIR/${PROFILE_UUID}.mobileprovision"
-                          echo "Copying profile to: $DEST_FILE"
-                          cp "$profile_file" "$DEST_FILE"
-                          chmod 644 "$DEST_FILE"
-                          echo "✅ Installed profile: $PROFILE_UUID"
+                        # 提取 profile UUID 作为文件名（使用临时文件）
+                        TEMP_PLIST=$(mktemp)
+                        security cms -D -i "$profile_file" > "$TEMP_PLIST" 2>/dev/null
+                        if [ -s "$TEMP_PLIST" ]; then
+                          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$TEMP_PLIST" 2>/dev/null || echo "")
+                          rm -f "$TEMP_PLIST"
+                          
+                          if [ -n "$PROFILE_UUID" ] && [ "$PROFILE_UUID" != "Error Reading File" ]; then
+                            DEST_FILE="$PROFILE_DIR/${PROFILE_UUID}.mobileprovision"
+                            echo "Copying profile to: $DEST_FILE"
+                            cp "$profile_file" "$DEST_FILE"
+                            chmod 644 "$DEST_FILE"
+                            echo "✅ Installed profile: $PROFILE_UUID"
+                          else
+                            # 如果无法提取 UUID，使用原始文件名
+                            FILENAME=$(basename "$profile_file")
+                            DEST_FILE="$PROFILE_DIR/$FILENAME"
+                            echo "Copying profile to: $DEST_FILE"
+                            cp "$profile_file" "$DEST_FILE"
+                            chmod 644 "$DEST_FILE"
+                            echo "✅ Installed profile: $FILENAME"
+                          fi
                         else
-                          # 如果无法提取 UUID，使用原始文件名
+                          rm -f "$TEMP_PLIST"
+                          # 如果无法解码，使用原始文件名
                           FILENAME=$(basename "$profile_file")
                           DEST_FILE="$PROFILE_DIR/$FILENAME"
                           echo "Copying profile to: $DEST_FILE"
@@ -856,12 +889,34 @@ jobs:
                       if [ -n "$PROFILE_FILES" ]; then
                         echo "$PROFILE_FILES" | while read -r profile_file; do
                           if [ -f "$profile_file" ]; then
-                            PROFILE_UUID=$(security cms -D -i "$profile_file" 2>/dev/null | /usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin 2>/dev/null || echo "")
-                            if [ -n "$PROFILE_UUID" ]; then
-                              DEST_FILE="$PROFILE_DIR/${PROFILE_UUID}.mobileprovision"
+                            # 提取 profile UUID（使用临时文件）
+                            TEMP_PLIST=$(mktemp)
+                            security cms -D -i "$profile_file" > "$TEMP_PLIST" 2>/dev/null
+                            if [ -s "$TEMP_PLIST" ]; then
+                              PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$TEMP_PLIST" 2>/dev/null || echo "")
+                              rm -f "$TEMP_PLIST"
+                              
+                              if [ -n "$PROFILE_UUID" ] && [ "$PROFILE_UUID" != "Error Reading File" ]; then
+                                DEST_FILE="$PROFILE_DIR/${PROFILE_UUID}.mobileprovision"
+                                cp "$profile_file" "$DEST_FILE"
+                                chmod 644 "$DEST_FILE"
+                                echo "✅ Installed profile: $PROFILE_UUID"
+                              else
+                                # 如果无法提取 UUID，使用原始文件名
+                                FILENAME=$(basename "$profile_file")
+                                DEST_FILE="$PROFILE_DIR/$FILENAME"
+                                cp "$profile_file" "$DEST_FILE"
+                                chmod 644 "$DEST_FILE"
+                                echo "✅ Installed profile: $FILENAME"
+                              fi
+                            else
+                              rm -f "$TEMP_PLIST"
+                              # 如果无法解码，使用原始文件名
+                              FILENAME=$(basename "$profile_file")
+                              DEST_FILE="$PROFILE_DIR/$FILENAME"
                               cp "$profile_file" "$DEST_FILE"
                               chmod 644 "$DEST_FILE"
-                              echo "✅ Installed profile: $PROFILE_UUID"
+                              echo "✅ Installed profile: $FILENAME"
                             fi
                           fi
                         done
@@ -890,13 +945,18 @@ jobs:
           for profile in "$PROFILE_DIR"/*.mobileprovision; do
             if [ -f "$profile" ]; then
               echo "Checking profile: $profile"
-              PROFILE_CONTENT=$(security cms -D -i "$profile" 2>/dev/null)
-              if [ -n "$PROFILE_CONTENT" ]; then
+              # 使用临时文件来解码 profile
+              TEMP_PLIST=$(mktemp)
+              security cms -D -i "$profile" > "$TEMP_PLIST" 2>/dev/null
+              
+              if [ -s "$TEMP_PLIST" ]; then
+                PROFILE_CONTENT=$(cat "$TEMP_PLIST")
                 # 检查是否包含 com.fridgy.app
                 if echo "$PROFILE_CONTENT" | grep -q "com.fridgy.app"; then
                   echo "✅ Found matching profile for com.fridgy.app: $profile"
-                  PROFILE_UUID=$(echo "$PROFILE_CONTENT" | /usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin 2>/dev/null || echo "")
-                  if [ -n "$PROFILE_UUID" ]; then
+                  PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$TEMP_PLIST" 2>/dev/null || echo "")
+                  
+                  if [ -n "$PROFILE_UUID" ] && [ "$PROFILE_UUID" != "Error Reading File" ]; then
                     PROFILE_FOUND=1
                     
                     # 检查是否包含 Push Notifications
@@ -904,19 +964,25 @@ jobs:
                       echo "✅ Profile contains Push Notifications capability"
                       echo "Profile UUID: $PROFILE_UUID"
                       echo "profile_uuid=$PROFILE_UUID" >> $GITHUB_OUTPUT
+                      rm -f "$TEMP_PLIST"
                       break
                     else
                       echo "::error::Profile does NOT contain Push Notifications capability"
                       echo "::error::Profile UUID: $PROFILE_UUID"
                       NEED_FORCE_RECREATE=1
+                      rm -f "$TEMP_PLIST"
                       break
                     fi
                   else
                     echo "::warning::Could not extract UUID from profile"
+                    rm -f "$TEMP_PLIST"
                   fi
+                else
+                  rm -f "$TEMP_PLIST"
                 fi
               else
                 echo "::warning::Could not decode profile: $profile"
+                rm -f "$TEMP_PLIST"
               fi
             fi
           done
@@ -1034,10 +1100,22 @@ jobs:
           # 如果没有从步骤输出获取到 UUID，尝试再次查找
           if [ -z "$PROFILE_UUID" ]; then
             echo "::warning::No provisioning profile UUID from fastlane match step, trying to find it manually..."
-            PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+            # fastlane match 将 profiles 安装到 Xcode 目录
+            XCODE_PROFILE_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+            MOBILEDEVICE_PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
             
-            if [ ! -d "$PROFILE_DIR" ]; then
-              echo "::error::Provisioning Profiles directory does not exist: $PROFILE_DIR"
+            # 优先检查 Xcode profile 目录
+            PROFILE_DIR=""
+            if [ -d "$XCODE_PROFILE_DIR" ]; then
+              PROFILE_DIR="$XCODE_PROFILE_DIR"
+              echo "Checking Xcode profile directory: $PROFILE_DIR"
+            elif [ -d "$MOBILEDEVICE_PROFILE_DIR" ]; then
+              PROFILE_DIR="$MOBILEDEVICE_PROFILE_DIR"
+              echo "Checking MobileDevice profile directory: $PROFILE_DIR"
+            else
+              echo "::error::Provisioning Profiles directories do not exist"
+              echo "::error::Checked: $XCODE_PROFILE_DIR"
+              echo "::error::Checked: $MOBILEDEVICE_PROFILE_DIR"
               echo "::error::This indicates fastlane match did not install any profiles"
               echo "::error::Please check the fastlane match step logs above for errors"
               exit 1
@@ -1070,15 +1148,20 @@ jobs:
             FOUND_PROFILE=0
             for profile in "$PROFILE_DIR"/*.mobileprovision; do
               if [ -f "$profile" ]; then
-                PROFILE_CONTENT=$(security cms -D -i "$profile" 2>/dev/null)
-                if [ -n "$PROFILE_CONTENT" ]; then
+                # 使用临时文件来解码 profile
+                TEMP_PLIST=$(mktemp)
+                security cms -D -i "$profile" > "$TEMP_PLIST" 2>/dev/null
+                
+                if [ -s "$TEMP_PLIST" ]; then
+                  PROFILE_CONTENT=$(cat "$TEMP_PLIST")
                   # 检查是否包含 com.fridgy.app
                   if echo "$PROFILE_CONTENT" | grep -q "com.fridgy.app"; then
                     echo "✅ Found matching profile for com.fridgy.app: $profile"
                     FOUND_PROFILE=1
                     
                     # 提取 UUID
-                    PROFILE_UUID=$(echo "$PROFILE_CONTENT" | /usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin 2>/dev/null || echo "")
+                    PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$TEMP_PLIST" 2>/dev/null || echo "")
+                    rm -f "$TEMP_PLIST"
                     if [ -n "$PROFILE_UUID" ]; then
                       echo "✅ Extracted profile UUID: $PROFILE_UUID"
                       
