@@ -779,15 +779,52 @@ jobs:
           echo "Listing profiles in Xcode directory:"
           ls -la "$XCODE_PROFILE_DIR" 2>/dev/null | head -20 || echo "Directory is empty or not accessible"
           
-          # 尝试从 fastlane match 的 git 仓库手动复制 profiles
-          echo "=========================================="
-          echo "Attempting to manually install profiles from match repository..."
-          echo "=========================================="
+          # 检查是否已经有 profiles 存在
+          EXISTING_PROFILES=$(find "$PROFILE_DIR" -name "*.mobileprovision" -type f 2>/dev/null | wc -l | tr -d ' ')
+          echo "Found $EXISTING_PROFILES existing profile(s) in directory"
           
-          # 获取 match git URL
-          MATCH_GIT_URL=$(grep 'git_url' fastlane/Matchfile 2>/dev/null | sed 's/.*git_url("\(.*\)").*/\1/' || echo "")
-          if [ -n "$MATCH_GIT_URL" ]; then
-            echo "Match repository URL: $MATCH_GIT_URL"
+          # 如果已经有 profiles，检查是否包含 com.fridgy.app
+          if [ "$EXISTING_PROFILES" -gt 0 ]; then
+            echo "Checking if existing profiles match com.fridgy.app..."
+            FOUND_MATCHING_PROFILE=0
+            for profile in "$PROFILE_DIR"/*.mobileprovision; do
+              if [ -f "$profile" ]; then
+                TEMP_PLIST=$(mktemp)
+                security cms -D -i "$profile" > "$TEMP_PLIST" 2>/dev/null
+                if [ -s "$TEMP_PLIST" ]; then
+                  if grep -q "com.fridgy.app" "$TEMP_PLIST" 2>/dev/null; then
+                    echo "✅ Found matching profile for com.fridgy.app: $profile"
+                    FOUND_MATCHING_PROFILE=1
+                    rm -f "$TEMP_PLIST"
+                    break
+                  fi
+                fi
+                rm -f "$TEMP_PLIST"
+              fi
+            done
+            
+            if [ $FOUND_MATCHING_PROFILE -eq 1 ]; then
+              echo "✅ Profiles already installed by fastlane match, skipping manual installation"
+              SKIP_MANUAL_INSTALL=1
+            else
+              echo "::warning::Profiles exist but none match com.fridgy.app, will try manual installation"
+              SKIP_MANUAL_INSTALL=0
+            fi
+          else
+            SKIP_MANUAL_INSTALL=0
+          fi
+          
+          # 只有在没有找到匹配的 profile 时才尝试手动安装
+          if [ "${SKIP_MANUAL_INSTALL:-0}" -eq 0 ]; then
+            # 尝试从 fastlane match 的 git 仓库手动复制 profiles
+            echo "=========================================="
+            echo "Attempting to manually install profiles from match repository..."
+            echo "=========================================="
+            
+            # 获取 match git URL
+            MATCH_GIT_URL=$(grep 'git_url' fastlane/Matchfile 2>/dev/null | sed 's/.*git_url("\(.*\)").*/\1/' || echo "")
+            if [ -n "$MATCH_GIT_URL" ]; then
+              echo "Match repository URL: $MATCH_GIT_URL"
             
             # fastlane match 通常将仓库克隆到 ~/.fastlane/match 或临时目录
             # 尝试查找 match 仓库的本地副本
@@ -881,12 +918,17 @@ jobs:
                   AUTH_TOKEN=$(echo "$AUTH_STRING" | cut -d: -f2-)
                   GIT_URL_WITH_AUTH=$(echo "$MATCH_GIT_URL" | sed "s|https://|https://$AUTH_USER:$AUTH_TOKEN@|")
                   
-                  if git clone "$GIT_URL_WITH_AUTH" "$TEMP_MATCH_DIR" 2>&1 | head -20; then
+                  CLONE_OUTPUT=$(git clone "$GIT_URL_WITH_AUTH" "$TEMP_MATCH_DIR" 2>&1)
+                  CLONE_EXIT_CODE=$?
+                  
+                  if [ $CLONE_EXIT_CODE -eq 0 ]; then
                     echo "✅ Successfully cloned match repository"
                     # 查找并复制 profiles
                     if [ -d "$TEMP_MATCH_DIR/profiles/appstore" ]; then
                       PROFILE_FILES=$(find "$TEMP_MATCH_DIR/profiles/appstore" -name "*.mobileprovision" -type f 2>/dev/null)
                       if [ -n "$PROFILE_FILES" ]; then
+                        echo "Found profile files in cloned repository:"
+                        echo "$PROFILE_FILES"
                         echo "$PROFILE_FILES" | while read -r profile_file; do
                           if [ -f "$profile_file" ]; then
                             # 提取 profile UUID（使用临时文件）
@@ -920,16 +962,28 @@ jobs:
                             fi
                           fi
                         done
+                      else
+                        echo "::warning::No .mobileprovision files found in cloned repository"
                       fi
+                    else
+                      echo "::warning::profiles/appstore directory not found in cloned repository"
                     fi
                     rm -rf "$TEMP_MATCH_DIR"
                   else
-                    echo "::warning::Failed to clone match repository manually"
+                    echo "::warning::Failed to clone match repository manually (exit code: $CLONE_EXIT_CODE)"
+                    echo "Clone output:"
+                    echo "$CLONE_OUTPUT" | head -20
                     rm -rf "$TEMP_MATCH_DIR"
                   fi
+                else
+                  echo "::warning::Git URL is not HTTPS or authentication string format is invalid"
                 fi
+              else
+                echo "::warning::MATCH_GIT_BASIC_AUTHORIZATION not set, cannot clone repository"
               fi
             fi
+          else
+            echo "Skipping manual profile installation (profiles already found)"
           fi
           
           echo "=========================================="
