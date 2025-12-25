@@ -825,48 +825,58 @@ jobs:
             MATCH_GIT_URL=$(grep 'git_url' fastlane/Matchfile 2>/dev/null | sed 's/.*git_url("\(.*\)").*/\1/' || echo "")
             if [ -n "$MATCH_GIT_URL" ]; then
               echo "Match repository URL: $MATCH_GIT_URL"
-            
-            # fastlane match 通常将仓库克隆到 ~/.fastlane/match 或临时目录
-            # 尝试查找 match 仓库的本地副本
-            MATCH_REPO_PATHS=(
-              "$HOME/.fastlane/match"
-              "/tmp/match_repo"
-              "$HOME/Library/Caches/match"
-            )
-            
-            MATCH_REPO_FOUND=0
-            for MATCH_REPO_PATH in "${MATCH_REPO_PATHS[@]}"; do
-              if [ -d "$MATCH_REPO_PATH" ]; then
-                echo "Found potential match repository at: $MATCH_REPO_PATH"
-                # 查找 profiles 目录
-                if [ -d "$MATCH_REPO_PATH/profiles/appstore" ]; then
-                  echo "Found profiles directory: $MATCH_REPO_PATH/profiles/appstore"
-                  MATCH_REPO_FOUND=1
-                  
-                  # 查找 .mobileprovision 文件
-                  PROFILE_FILES=$(find "$MATCH_REPO_PATH/profiles/appstore" -name "*.mobileprovision" -type f 2>/dev/null)
-                  if [ -n "$PROFILE_FILES" ]; then
-                    echo "Found profile files in match repository:"
-                    echo "$PROFILE_FILES"
+              
+              # fastlane match 通常将仓库克隆到 ~/.fastlane/match 或临时目录
+              # 尝试查找 match 仓库的本地副本
+              MATCH_REPO_PATHS=(
+                "$HOME/.fastlane/match"
+                "/tmp/match_repo"
+                "$HOME/Library/Caches/match"
+              )
+              
+              MATCH_REPO_FOUND=0
+              for MATCH_REPO_PATH in "${MATCH_REPO_PATHS[@]}"; do
+                if [ -d "$MATCH_REPO_PATH" ]; then
+                  echo "Found potential match repository at: $MATCH_REPO_PATH"
+                  # 查找 profiles 目录
+                  if [ -d "$MATCH_REPO_PATH/profiles/appstore" ]; then
+                    echo "Found profiles directory: $MATCH_REPO_PATH/profiles/appstore"
+                    MATCH_REPO_FOUND=1
                     
-                    # 复制每个 profile 到标准位置
-                    echo "$PROFILE_FILES" | while read -r profile_file; do
-                      if [ -f "$profile_file" ]; then
-                        # 提取 profile UUID 作为文件名（使用临时文件）
-                        TEMP_PLIST=$(mktemp)
-                        security cms -D -i "$profile_file" > "$TEMP_PLIST" 2>/dev/null
-                        if [ -s "$TEMP_PLIST" ]; then
-                          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$TEMP_PLIST" 2>/dev/null || echo "")
-                          rm -f "$TEMP_PLIST"
-                          
-                          if [ -n "$PROFILE_UUID" ] && [ "$PROFILE_UUID" != "Error Reading File" ]; then
-                            DEST_FILE="$PROFILE_DIR/${PROFILE_UUID}.mobileprovision"
-                            echo "Copying profile to: $DEST_FILE"
-                            cp "$profile_file" "$DEST_FILE"
-                            chmod 644 "$DEST_FILE"
-                            echo "✅ Installed profile: $PROFILE_UUID"
+                    # 查找 .mobileprovision 文件
+                    PROFILE_FILES=$(find "$MATCH_REPO_PATH/profiles/appstore" -name "*.mobileprovision" -type f 2>/dev/null)
+                    if [ -n "$PROFILE_FILES" ]; then
+                      echo "Found profile files in match repository:"
+                      echo "$PROFILE_FILES"
+                      
+                      # 复制每个 profile 到标准位置
+                      echo "$PROFILE_FILES" | while read -r profile_file; do
+                        if [ -f "$profile_file" ]; then
+                          # 提取 profile UUID 作为文件名（使用临时文件）
+                          TEMP_PLIST=$(mktemp)
+                          security cms -D -i "$profile_file" > "$TEMP_PLIST" 2>/dev/null
+                          if [ -s "$TEMP_PLIST" ]; then
+                            PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$TEMP_PLIST" 2>/dev/null || echo "")
+                            rm -f "$TEMP_PLIST"
+                            
+                            if [ -n "$PROFILE_UUID" ] && [ "$PROFILE_UUID" != "Error Reading File" ]; then
+                              DEST_FILE="$PROFILE_DIR/${PROFILE_UUID}.mobileprovision"
+                              echo "Copying profile to: $DEST_FILE"
+                              cp "$profile_file" "$DEST_FILE"
+                              chmod 644 "$DEST_FILE"
+                              echo "✅ Installed profile: $PROFILE_UUID"
+                            else
+                              # 如果无法提取 UUID，使用原始文件名
+                              FILENAME=$(basename "$profile_file")
+                              DEST_FILE="$PROFILE_DIR/$FILENAME"
+                              echo "Copying profile to: $DEST_FILE"
+                              cp "$profile_file" "$DEST_FILE"
+                              chmod 644 "$DEST_FILE"
+                              echo "✅ Installed profile: $FILENAME"
+                            fi
                           else
-                            # 如果无法提取 UUID，使用原始文件名
+                            rm -f "$TEMP_PLIST"
+                            # 如果无法解码，使用原始文件名
                             FILENAME=$(basename "$profile_file")
                             DEST_FILE="$PROFILE_DIR/$FILENAME"
                             echo "Copying profile to: $DEST_FILE"
@@ -874,112 +884,103 @@ jobs:
                             chmod 644 "$DEST_FILE"
                             echo "✅ Installed profile: $FILENAME"
                           fi
-                        else
-                          rm -f "$TEMP_PLIST"
-                          # 如果无法解码，使用原始文件名
-                          FILENAME=$(basename "$profile_file")
-                          DEST_FILE="$PROFILE_DIR/$FILENAME"
-                          echo "Copying profile to: $DEST_FILE"
-                          cp "$profile_file" "$DEST_FILE"
-                          chmod 644 "$DEST_FILE"
-                          echo "✅ Installed profile: $FILENAME"
                         fi
-                      fi
-                    done
-                  else
-                    echo "No .mobileprovision files found in $MATCH_REPO_PATH/profiles/appstore"
+                      done
+                    else
+                      echo "No .mobileprovision files found in $MATCH_REPO_PATH/profiles/appstore"
+                    fi
+                    break
                   fi
-                  break
                 fi
-              fi
-            done
-            
-            if [ $MATCH_REPO_FOUND -eq 0 ]; then
-              echo "::warning::Could not find match repository locally"
-              echo "::warning::fastlane match may have cleaned up temporary files"
-              echo "::warning::Will try to clone repository manually..."
+              done
               
-              # 尝试手动克隆 match 仓库（如果需要）
-              # 注意：这需要 MATCH_PASSWORD 和 MATCH_GIT_BASIC_AUTHORIZATION
-              TEMP_MATCH_DIR=$(mktemp -d)
-              echo "Cloning match repository to: $TEMP_MATCH_DIR"
-              
-              # 构建带认证的 URL
-              if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
-                # 解码 base64 或使用原始格式
-                if echo "$MATCH_GIT_BASIC_AUTHORIZATION" | base64 -d > /dev/null 2>&1; then
-                  AUTH_STRING=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | base64 -d)
-                else
-                  AUTH_STRING="$MATCH_GIT_BASIC_AUTHORIZATION"
-                fi
+              if [ $MATCH_REPO_FOUND -eq 0 ]; then
+                echo "::warning::Could not find match repository locally"
+                echo "::warning::fastlane match may have cleaned up temporary files"
+                echo "::warning::Will try to clone repository manually..."
                 
-                if [[ "$MATCH_GIT_URL" == https://* ]] && [[ "$AUTH_STRING" == *":"* ]]; then
-                  AUTH_USER=$(echo "$AUTH_STRING" | cut -d: -f1)
-                  AUTH_TOKEN=$(echo "$AUTH_STRING" | cut -d: -f2-)
-                  GIT_URL_WITH_AUTH=$(echo "$MATCH_GIT_URL" | sed "s|https://|https://$AUTH_USER:$AUTH_TOKEN@|")
+                # 尝试手动克隆 match 仓库（如果需要）
+                # 注意：这需要 MATCH_PASSWORD 和 MATCH_GIT_BASIC_AUTHORIZATION
+                TEMP_MATCH_DIR=$(mktemp -d)
+                echo "Cloning match repository to: $TEMP_MATCH_DIR"
+                
+                # 构建带认证的 URL
+                if [ -n "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
+                  # 解码 base64 或使用原始格式
+                  if echo "$MATCH_GIT_BASIC_AUTHORIZATION" | base64 -d > /dev/null 2>&1; then
+                    AUTH_STRING=$(echo "$MATCH_GIT_BASIC_AUTHORIZATION" | base64 -d)
+                  else
+                    AUTH_STRING="$MATCH_GIT_BASIC_AUTHORIZATION"
+                  fi
                   
-                  CLONE_OUTPUT=$(git clone "$GIT_URL_WITH_AUTH" "$TEMP_MATCH_DIR" 2>&1)
-                  CLONE_EXIT_CODE=$?
-                  
-                  if [ $CLONE_EXIT_CODE -eq 0 ]; then
-                    echo "✅ Successfully cloned match repository"
-                    # 查找并复制 profiles
-                    if [ -d "$TEMP_MATCH_DIR/profiles/appstore" ]; then
-                      PROFILE_FILES=$(find "$TEMP_MATCH_DIR/profiles/appstore" -name "*.mobileprovision" -type f 2>/dev/null)
-                      if [ -n "$PROFILE_FILES" ]; then
-                        echo "Found profile files in cloned repository:"
-                        echo "$PROFILE_FILES"
-                        echo "$PROFILE_FILES" | while read -r profile_file; do
-                          if [ -f "$profile_file" ]; then
-                            # 提取 profile UUID（使用临时文件）
-                            TEMP_PLIST=$(mktemp)
-                            security cms -D -i "$profile_file" > "$TEMP_PLIST" 2>/dev/null
-                            if [ -s "$TEMP_PLIST" ]; then
-                              PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$TEMP_PLIST" 2>/dev/null || echo "")
-                              rm -f "$TEMP_PLIST"
-                              
-                              if [ -n "$PROFILE_UUID" ] && [ "$PROFILE_UUID" != "Error Reading File" ]; then
-                                DEST_FILE="$PROFILE_DIR/${PROFILE_UUID}.mobileprovision"
-                                cp "$profile_file" "$DEST_FILE"
-                                chmod 644 "$DEST_FILE"
-                                echo "✅ Installed profile: $PROFILE_UUID"
+                  if [[ "$MATCH_GIT_URL" == https://* ]] && [[ "$AUTH_STRING" == *":"* ]]; then
+                    AUTH_USER=$(echo "$AUTH_STRING" | cut -d: -f1)
+                    AUTH_TOKEN=$(echo "$AUTH_STRING" | cut -d: -f2-)
+                    GIT_URL_WITH_AUTH=$(echo "$MATCH_GIT_URL" | sed "s|https://|https://$AUTH_USER:$AUTH_TOKEN@|")
+                    
+                    CLONE_OUTPUT=$(git clone "$GIT_URL_WITH_AUTH" "$TEMP_MATCH_DIR" 2>&1)
+                    CLONE_EXIT_CODE=$?
+                    
+                    if [ $CLONE_EXIT_CODE -eq 0 ]; then
+                      echo "✅ Successfully cloned match repository"
+                      # 查找并复制 profiles
+                      if [ -d "$TEMP_MATCH_DIR/profiles/appstore" ]; then
+                        PROFILE_FILES=$(find "$TEMP_MATCH_DIR/profiles/appstore" -name "*.mobileprovision" -type f 2>/dev/null)
+                        if [ -n "$PROFILE_FILES" ]; then
+                          echo "Found profile files in cloned repository:"
+                          echo "$PROFILE_FILES"
+                          echo "$PROFILE_FILES" | while read -r profile_file; do
+                            if [ -f "$profile_file" ]; then
+                              # 提取 profile UUID（使用临时文件）
+                              TEMP_PLIST=$(mktemp)
+                              security cms -D -i "$profile_file" > "$TEMP_PLIST" 2>/dev/null
+                              if [ -s "$TEMP_PLIST" ]; then
+                                PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$TEMP_PLIST" 2>/dev/null || echo "")
+                                rm -f "$TEMP_PLIST"
+                                
+                                if [ -n "$PROFILE_UUID" ] && [ "$PROFILE_UUID" != "Error Reading File" ]; then
+                                  DEST_FILE="$PROFILE_DIR/${PROFILE_UUID}.mobileprovision"
+                                  cp "$profile_file" "$DEST_FILE"
+                                  chmod 644 "$DEST_FILE"
+                                  echo "✅ Installed profile: $PROFILE_UUID"
+                                else
+                                  # 如果无法提取 UUID，使用原始文件名
+                                  FILENAME=$(basename "$profile_file")
+                                  DEST_FILE="$PROFILE_DIR/$FILENAME"
+                                  cp "$profile_file" "$DEST_FILE"
+                                  chmod 644 "$DEST_FILE"
+                                  echo "✅ Installed profile: $FILENAME"
+                                fi
                               else
-                                # 如果无法提取 UUID，使用原始文件名
+                                rm -f "$TEMP_PLIST"
+                                # 如果无法解码，使用原始文件名
                                 FILENAME=$(basename "$profile_file")
                                 DEST_FILE="$PROFILE_DIR/$FILENAME"
                                 cp "$profile_file" "$DEST_FILE"
                                 chmod 644 "$DEST_FILE"
                                 echo "✅ Installed profile: $FILENAME"
                               fi
-                            else
-                              rm -f "$TEMP_PLIST"
-                              # 如果无法解码，使用原始文件名
-                              FILENAME=$(basename "$profile_file")
-                              DEST_FILE="$PROFILE_DIR/$FILENAME"
-                              cp "$profile_file" "$DEST_FILE"
-                              chmod 644 "$DEST_FILE"
-                              echo "✅ Installed profile: $FILENAME"
                             fi
-                          fi
-                        done
+                          done
+                        else
+                          echo "::warning::No .mobileprovision files found in cloned repository"
+                        fi
                       else
-                        echo "::warning::No .mobileprovision files found in cloned repository"
+                        echo "::warning::profiles/appstore directory not found in cloned repository"
                       fi
+                      rm -rf "$TEMP_MATCH_DIR"
                     else
-                      echo "::warning::profiles/appstore directory not found in cloned repository"
+                      echo "::warning::Failed to clone match repository manually (exit code: $CLONE_EXIT_CODE)"
+                      echo "Clone output:"
+                      echo "$CLONE_OUTPUT" | head -20
+                      rm -rf "$TEMP_MATCH_DIR"
                     fi
-                    rm -rf "$TEMP_MATCH_DIR"
                   else
-                    echo "::warning::Failed to clone match repository manually (exit code: $CLONE_EXIT_CODE)"
-                    echo "Clone output:"
-                    echo "$CLONE_OUTPUT" | head -20
-                    rm -rf "$TEMP_MATCH_DIR"
+                    echo "::warning::Git URL is not HTTPS or authentication string format is invalid"
                   fi
                 else
-                  echo "::warning::Git URL is not HTTPS or authentication string format is invalid"
+                  echo "::warning::MATCH_GIT_BASIC_AUTHORIZATION not set, cannot clone repository"
                 fi
-              else
-                echo "::warning::MATCH_GIT_BASIC_AUTHORIZATION not set, cannot clone repository"
               fi
             fi
           else
