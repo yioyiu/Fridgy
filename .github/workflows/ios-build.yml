@@ -98,48 +98,26 @@ jobs:
             else
               echo "Adding post_install hook to disable code signing for Pods..."
               # 使用 Ruby 脚本来安全地修改 Podfile
-              ruby << 'RUBY_SCRIPT'
-podfile_path = 'Podfile'
-content = File.read(podfile_path)
-
-# 检查是否已经有 post_install hook
-if content.include?('post_install do')
-  # 如果已有 post_install，检查是否已经有 CODE_SIGNING_ALLOWED
-  unless content.include?('CODE_SIGNING_ALLOWED')
-    # 在 post_install 块的最后一个 end 之前添加代码
-    # 找到最后一个 post_install do ... end 块
-    pattern = /(post_install do \|installer\|.*?)(\nend)/
-    replacement = <<~RUBY
-\\1
-  installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"
-    end
-  end
-\\2
-RUBY
-    content = content.sub(pattern, replacement)
-    File.write(podfile_path, content)
-    puts "✅ Added CODE_SIGNING_ALLOWED = NO to existing post_install hook"
-  else
-    puts "✅ CODE_SIGNING_ALLOWED already configured"
-  end
-else
-  # 如果没有 post_install，在文件末尾添加
-  post_install_hook = <<~RUBY
-
-post_install do |installer|
-  installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"
-    end
-  end
-end
-RUBY
-  File.open(podfile_path, 'a') { |f| f.write(post_install_hook) }
-  puts "✅ Added new post_install hook with CODE_SIGNING_ALLOWED = NO"
-end
-RUBY_SCRIPT
+              ruby -e "
+              podfile_path = 'Podfile'
+              content = File.read(podfile_path)
+              
+              if content.include?('post_install do')
+                unless content.include?('CODE_SIGNING_ALLOWED')
+                  pattern = /(post_install do \|installer\|.*?)(\nend)/
+                  replacement = \"\\\\1\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\\\"CODE_SIGNING_ALLOWED\\\"] = \\\"NO\\\"\n    end\n  end\n\\\\2\"
+                  content = content.sub(pattern, replacement)
+                  File.write(podfile_path, content)
+                  puts '✅ Added CODE_SIGNING_ALLOWED = NO to existing post_install hook'
+                else
+                  puts '✅ CODE_SIGNING_ALLOWED already configured'
+                end
+              else
+                post_install_hook = \"\n\npost_install do |installer|\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\\\"CODE_SIGNING_ALLOWED\\\"] = \\\"NO\\\"\n    end\n  end\nend\n\"
+                File.open(podfile_path, 'a') { |f| f.write(post_install_hook) }
+                puts '✅ Added new post_install hook with CODE_SIGNING_ALLOWED = NO'
+              end
+              "
               echo "Podfile updated. Last 15 lines:"
               tail -15 Podfile
               # 重新运行 pod install 以应用更改
