@@ -1448,19 +1448,124 @@ jobs:
           
           echo "ExportOptions.plist verified. Team ID: $ACTUAL_TEAM_ID"
           
+          # 获取 provisioning profile UUID（从构建步骤）
+          PROFILE_UUID="${{ steps.run_fastlane_match.outputs.profile_uuid }}"
+          
+          # 如果 ExportOptions.plist 使用手动签名，需要添加 provisioningProfileUUID
+          # 检查当前的 signingStyle
+          CURRENT_SIGNING_STYLE=$(grep -A 1 '<key>signingStyle</key>' ios/ExportOptions.plist | grep '<string>' | sed -E 's/.*<string>([^<]*)<\/string>.*/\1/' | tr -d '[:space:]')
+          
+          echo "Current signing style in ExportOptions.plist: $CURRENT_SIGNING_STYLE"
+          
+          # 如果使用手动签名，确保 ExportOptions.plist 配置正确
+          if [ "$CURRENT_SIGNING_STYLE" = "automatic" ]; then
+            echo "::warning::ExportOptions.plist uses 'automatic' signing, but build uses 'Manual'"
+            echo "::warning::Updating ExportOptions.plist to use 'manual' signing..."
+            # 更新 signingStyle 为 manual
+            sed -i '' 's|<string>automatic</string>|<string>manual</string>|g' ios/ExportOptions.plist
+            echo "✅ Updated signingStyle to 'manual'"
+          fi
+          
+          # 如果使用手动签名且提供了 profile UUID，添加 provisioningProfileUUID
+          if [ -n "$PROFILE_UUID" ]; then
+            echo "Updating ExportOptions.plist with provisioningProfileUUID: $PROFILE_UUID"
+            # 使用 Python 来安全地修改 plist（通过临时文件）
+            TEMP_PYTHON_SCRIPT=$(mktemp)
+            cat > "$TEMP_PYTHON_SCRIPT" << 'PYTHON_EOF'
+import plistlib
+import sys
+
+plist_path = sys.argv[1]
+profile_uuid = sys.argv[2]
+
+try:
+    with open(plist_path, 'rb') as f:
+        plist = plistlib.load(f)
+    
+    # 设置 signingStyle 为 manual
+    plist['signingStyle'] = 'manual'
+    
+    # 添加或更新 provisioningProfileUUID
+    plist['provisioningProfileUUID'] = profile_uuid
+    
+    with open(plist_path, 'wb') as f:
+        plistlib.dump(plist, f)
+    
+    print('✅ ExportOptions.plist updated successfully')
+    print(f'✅ Added provisioningProfileUUID: {profile_uuid}')
+except Exception as e:
+    print(f'::error::Failed to update ExportOptions.plist: {e}')
+    sys.exit(1)
+PYTHON_EOF
+            
+            python3 "$TEMP_PYTHON_SCRIPT" ios/ExportOptions.plist "$PROFILE_UUID"
+            PYTHON_EXIT_CODE=$?
+            rm -f "$TEMP_PYTHON_SCRIPT"
+            
+            if [ $PYTHON_EXIT_CODE -ne 0 ]; then
+              echo "::error::Failed to update ExportOptions.plist"
+              exit 1
+            fi
+          fi
+          
+          echo "Final ExportOptions.plist content:"
+          cat ios/ExportOptions.plist
+          
+          # 导出 IPA
+          echo "=========================================="
+          echo "Exporting IPA from archive..."
+          echo "=========================================="
           xcodebuild -exportArchive \
             -archivePath build/Fridgy.xcarchive \
             -exportPath build \
             -exportOptionsPlist ios/ExportOptions.plist \
-            -allowProvisioningUpdates
+            -allowProvisioningUpdates 2>&1 | tee export.log || {
+            EXIT_CODE=$?
+            echo "::error::Export failed with exit code $EXIT_CODE"
+            echo "=========================================="
+            echo "Export error log:"
+            echo "=========================================="
+            cat export.log
+            echo "=========================================="
+            echo "Common export errors:"
+            echo "1. Provisioning profile mismatch"
+            echo "2. Code signing identity not found"
+            echo "3. ExportOptions.plist configuration error"
+            exit 1
+          }
+          
+          # 检查导出是否成功
+          if [ ! -f build/Fridgy.ipa ]; then
+            echo "::error::IPA file not found after export"
+            echo "Export log (last 50 lines):"
+            tail -50 export.log
+            exit 1
+          fi
+          
+          echo "✅ IPA exported successfully"
 
       - name: Verify IPA file
         run: |
           if [ ! -f build/Fridgy.ipa ]; then
             echo "::error::IPA file not found after export"
+            if [ -f export.log ]; then
+              echo "Export log (last 50 lines):"
+              tail -50 export.log
+            fi
             exit 1
           fi
+          
+          echo "✅ IPA file verified"
           echo "IPA file size: $(du -h build/Fridgy.ipa | cut -f1)"
+          echo "IPA file location: $(pwd)/build/Fridgy.ipa"
+          
+          # 验证 IPA 文件完整性
+          if [ ! -s build/Fridgy.ipa ]; then
+            echo "::error::IPA file is empty"
+            exit 1
+          fi
+          
+          echo "✅ IPA file is valid and ready for upload"
 
       - name: Upload to App Store Connect
         uses: apple-actions/upload-testflight-build@v1
@@ -1469,6 +1574,7 @@ jobs:
           issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        continue-on-error: false
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
