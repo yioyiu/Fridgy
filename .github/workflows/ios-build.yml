@@ -93,33 +93,18 @@ jobs:
           if [ -f Podfile ]; then
             echo "Checking Podfile for code signing configuration..."
             # 检查是否已经禁用了代码签名
-            if grep -q 'CODE_SIGNING_ALLOWED.*NO' Podfile; then
+            if grep -q 'CODE_SIGNING_ALLOWED.*NO' Podfile && grep -q 'CODE_SIGN_IDENTITY.*""' Podfile; then
               echo "✅ Code signing already disabled for Pods"
             else
               echo "Adding post_install hook to disable code signing for Pods..."
               # 使用 Ruby 脚本来安全地修改 Podfile
-              ruby -e "
-              podfile_path = 'Podfile'
-              content = File.read(podfile_path)
-              
-              if content.include?('post_install do')
-                unless content.include?('CODE_SIGNING_ALLOWED')
-                  pattern = /(post_install do \|installer\|.*?)(\nend)/
-                  replacement = \"\\\\1\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\\\"CODE_SIGNING_ALLOWED\\\"] = \\\"NO\\\"\n    end\n  end\n\\\\2\"
-                  content = content.sub(pattern, replacement)
-                  File.write(podfile_path, content)
-                  puts '✅ Added CODE_SIGNING_ALLOWED = NO to existing post_install hook'
-                else
-                  puts '✅ CODE_SIGNING_ALLOWED already configured'
-                end
-              else
-                post_install_hook = \"\n\npost_install do |installer|\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\\\"CODE_SIGNING_ALLOWED\\\"] = \\\"NO\\\"\n    end\n  end\nend\n\"
-                File.open(podfile_path, 'a') { |f| f.write(post_install_hook) }
-                puts '✅ Added new post_install hook with CODE_SIGNING_ALLOWED = NO'
-              end
-              "
-              echo "Podfile updated. Last 15 lines:"
-              tail -15 Podfile
+              # 使用 printf 创建临时 Ruby 脚本以避免 YAML heredoc 解析问题
+              TEMP_RUBY_SCRIPT=$(mktemp)
+              printf 'podfile_path = "Podfile"\ncontent = File.read(podfile_path)\ncode_signing_disable_code = "  installer.pods_project.targets.each do |target|\\n    target.build_configurations.each do |config|\\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\\n      config.build_settings[\"CODE_SIGN_IDENTITY\"] = \"\"\\n      config.build_settings[\"CODE_SIGN_STYLE\"] = \"Manual\"\\n      config.build_settings.delete(\"CODE_SIGN_ENTITLEMENTS\")\\n      config.build_settings.delete(\"PROVISIONING_PROFILE_SPECIFIER\")\\n      config.build_settings.delete(\"DEVELOPMENT_TEAM\")\\n    end\\n  end"\nif content.include?("post_install do")\n  unless content.include?("CODE_SIGNING_ALLOWED")\n    pattern = /(post_install do \\|installer\\|)(.*?)(\\nend)/\n    replacement = "\\\\1\\\\2\\n#{code_signing_disable_code}\\n\\\\3"\n    content = content.sub(pattern, replacement)\n    File.write(podfile_path, content)\n    puts "✅ Added CODE_SIGNING_ALLOWED = NO to existing post_install hook"\n  else\n    puts "✅ CODE_SIGNING_ALLOWED already configured"\n  end\nelse\n  post_install_hook = "\\n\\npost_install do |installer|\\n#{code_signing_disable_code}\\nend\\n"\n  File.open(podfile_path, "a") { |f| f.write(post_install_hook) }\n  puts "✅ Added new post_install hook with CODE_SIGNING_ALLOWED = NO"\nend\n' > "$TEMP_RUBY_SCRIPT"
+              ruby "$TEMP_RUBY_SCRIPT"
+              rm -f "$TEMP_RUBY_SCRIPT"
+              echo "Podfile updated. Last 20 lines:"
+              tail -20 Podfile
               # 重新运行 pod install 以应用更改
               echo "Running pod install to apply changes..."
               pod install
@@ -1311,11 +1296,39 @@ jobs:
             echo "Checking for stuck processes..."
             pkill -9 codesign 2>/dev/null || true
             pkill -9 xcodebuild 2>/dev/null || true
+            sleep 2
+            
+            # 清理 DerivedData 中的签名缓存，避免缓存问题导致卡住
+            echo "Cleaning DerivedData signature cache..."
+            rm -rf ~/Library/Developer/Xcode/DerivedData/*/Build/Intermediates.noindex/*/Signatures 2>/dev/null || true
+            rm -rf ~/Library/Developer/Xcode/DerivedData/*/Build/Products/*/Signatures 2>/dev/null || true
+            
+            # 设置代码签名相关的环境变量，明确禁用自动代码签名
+            export CODE_SIGN_STYLE="Manual"
+            export CODE_SIGN_IDENTITY="Apple Distribution"
+            export CODE_SIGN_IDENTITY_NAME="Apple Distribution"
+            export CODE_SIGN_REQUIREMENTS=""
+            export CODE_SIGN_ENTITLEMENTS=""
+            export CODE_SIGN_INJECT_BASE_ENTITLEMENTS="NO"
+            export DISABLE_MANUAL_TARGETS_BUILD_PHASES_CODE_SIGN="NO"
+            
+            # 禁用 Pods 的代码签名（双重保险）
+            export CODE_SIGNING_ALLOWED="NO"
+            
+            echo "Code signing configuration:"
+            echo "  CODE_SIGN_STYLE: $CODE_SIGN_STYLE"
+            echo "  CODE_SIGN_IDENTITY: $CODE_SIGN_IDENTITY"
+            echo "  PROVISIONING_PROFILE_SPECIFIER: $PROFILE_UUID"
+            echo "  CODE_SIGNING_ALLOWED for Pods: NO"
             
             # 设置构建超时为 3 小时（10800 秒），避免在代码签名步骤卡住
             # 使用 Perl 的 alarm 功能实现超时（macOS 兼容）
             echo "Starting build with 3-hour timeout..."
             echo "Note: Code signing for Pods is disabled via Podfile post_install hook"
+            echo "Note: Removed -allowProvisioningUpdates to prevent Xcode from trying to auto-update profiles"
+            
+            # 移除 -allowProvisioningUpdates，因为我们已经手动配置了 provisioning profile
+            # 这个选项可能导致 Xcode 尝试自动更新，导致在代码签名步骤卡住
             perl -e 'alarm 10800; exec @ARGV' -- xcodebuild -workspace ios/Fridgy.xcworkspace \
               -scheme Fridgy \
               -configuration Release \
@@ -1326,15 +1339,28 @@ jobs:
               CODE_SIGN_STYLE="Manual" \
               CODE_SIGN_IDENTITY="Apple Distribution" \
               PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
-              -allowProvisioningUpdates \
+              CODE_SIGN_INJECT_BASE_ENTITLEMENTS="NO" \
               archive 2>&1 | tee build.log || {
               EXIT_CODE=$?
               if [ $EXIT_CODE -eq 142 ]; then
                 echo "::error::Build timed out after 3 hours. Likely stuck in code signing step."
                 echo "::error::Checking for stuck processes..."
                 ps aux | grep -E "(codesign|xcodebuild)" | head -20
+                echo "::error::Killing stuck processes..."
+                pkill -9 codesign 2>/dev/null || true
+                pkill -9 xcodebuild 2>/dev/null || true
                 echo "::error::Last 100 lines of build log:"
                 tail -100 build.log
+                echo "::error::"
+                echo "::error::Possible causes:"
+                echo "::error::1. Code signing is stuck in [CP] Embed Pods Frameworks step"
+                echo "::error::2. Provisioning profile or certificate issue"
+                echo "::error::3. Xcode trying to auto-update provisioning profiles"
+                echo "::error::"
+                echo "::error::Solutions:"
+                echo "::error::1. Check if CODE_SIGNING_ALLOWED=NO is properly set in Podfile post_install hook"
+                echo "::error::2. Verify provisioning profile is valid and contains Push Notifications"
+                echo "::error::3. Check if certificate is valid and not expired"
                 exit 1
               else
                 exit $EXIT_CODE
