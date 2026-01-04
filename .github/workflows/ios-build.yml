@@ -176,6 +176,50 @@ jobs:
           echo "team_id=$TEAM_ID" >> $GITHUB_OUTPUT
           echo "Team ID extracted: $TEAM_ID"
 
+      - name: Preflight secrets check
+        run: |
+          echo "Running preflight secrets check..."
+          MISSING=0
+
+          if [ -z "${{ secrets.MATCH_PASSWORD }}" ]; then
+            echo "::error::Missing secret: MATCH_PASSWORD"
+            echo "::error::Action: Add MATCH_PASSWORD in Settings → Secrets and variables → Actions. It's required to decrypt the fastlane match repository."
+            MISSING=1
+          else
+            echo "✅ MATCH_PASSWORD is set"
+          fi
+
+          # Check App Store Connect API Key trio
+          if [ -n "${{ secrets.APPSTORE_API_KEY_ID }}" ] && [ -n "${{ secrets.APPSTORE_ISSUER_ID }}" ] && [ -n "${{ secrets.APPSTORE_API_PRIVATE_KEY }}" ]; then
+            echo "✅ App Store Connect API Key secrets appear set (APPSTORE_API_KEY_ID, APPSTORE_ISSUER_ID, APPSTORE_API_PRIVATE_KEY)."
+          else
+            echo "::warning::App Store Connect API Key is not fully configured. Recommended: set APPSTORE_API_KEY_ID, APPSTORE_ISSUER_ID and APPSTORE_API_PRIVATE_KEY (full .p8 contents including header/footer and newlines)."
+            # Check Apple ID + FASTLANE_SESSION fallback
+            if [ -n "${{ secrets.APPLE_ID }}" ] && [ -n "${{ secrets.FASTLANE_SESSION }}" ]; then
+              echo "✅ Apple ID + FASTLANE_SESSION appear set (fallback authentication)."
+            else
+              echo "::warning::No complete App Store Connect API Key and no Apple ID + FASTLANE_SESSION found — authentication may fail."
+            fi
+          fi
+
+          # If MATCH_GIT_URL is set and likely private, ensure MATCH_GIT_BASIC_AUTHORIZATION exists
+          if [ -n "${{ secrets.MATCH_GIT_URL }}" ]; then
+            echo "MATCH_GIT_URL is set"
+            if [ -z "${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}" ]; then
+              echo "::warning::MATCH_GIT_URL is set but MATCH_GIT_BASIC_AUTHORIZATION is missing. If your match repo is private, add MATCH_GIT_BASIC_AUTHORIZATION (format: username:token)."
+              MISSING=1
+            else
+              echo "✅ MATCH_GIT_BASIC_AUTHORIZATION is set (used to access private match git repo)."
+            fi
+          else
+            echo "ℹ️ MATCH_GIT_URL not set — workflow will use the default public git_url if configured."
+          fi
+
+          if [ $MISSING -ne 0 ]; then
+            echo "::error::Preflight failed — missing required secrets. Please add the missing secrets and re-run the workflow."
+            exit 1
+          fi
+
       - name: Install fastlane
         run: |
           sudo gem install fastlane -NV
